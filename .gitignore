@@ -1,0 +1,30 @@
+# Игнорируем временные файлы и каталоги
+*.log
+*.tmp
+*.bak
+*.swp
+
+# Игнорируем каталоги сборки
+/build/
+/out/
+
+# Virtualenv
+venv/
+.env
+
+# Django
+*.sqlite3
+*.log
+*.pot
+*.pyc
+db.sqlite3
+
+# Игнорируем конфигурационные файлы IDE
+.idea/
+/.vscode/
+
+# Игнорируем системные файлы macOS
+.DS_Store
+
+# Не игнорируем важные файлы
+!important.txt
