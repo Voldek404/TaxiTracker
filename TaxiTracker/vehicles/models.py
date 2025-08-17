@@ -9,6 +9,7 @@ class Vehicle(models.Model):
     price = models.IntegerField(validators=[MaxValueValidator(1000000)])
     country_of_origin = models.CharField(max_length=100)
     color = models.CharField(max_length=100)
+    plate_number = models.CharField(max_length=9, null = True, blank = True)
 
     def __str__(self):
-        return f"Автомобиль №{self.id}"
+        return f"id = {self.id} Авто"
