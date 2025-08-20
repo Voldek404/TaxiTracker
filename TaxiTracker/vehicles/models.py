@@ -16,7 +16,7 @@ class Brand(models.Model):
     number_of_passengers = models.PositiveIntegerField(validators=[MinValueValidator(1), MaxValueValidator(60)])
 
     def __str__(self):
-        return f"id = {self.id} . Марка авто {self.product_name}"
+        return f"Марка авто {self.product_name}"
 
 class Vehicle(models.Model):
     prod_date = models.DateField()
@@ -28,4 +28,4 @@ class Vehicle(models.Model):
     brand = models.ForeignKey(Brand, on_delete=models.CASCADE, null = True, related_name='vehicles')
 
     def __str__(self):
-        return f"id = {self.id} Авто. Госномер {self.plate_number}"
+        return f"id = {self.id} Авто. Госномер {self.plate_number}. Модель - {self.brand}"
