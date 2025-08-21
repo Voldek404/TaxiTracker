@@ -17,9 +17,11 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 
-from vehicles.views import VehicleApiView
+from vehicles.views import VehiclesApiView, BrandsApiView, VehiclesDetailApiView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/v1/vehicleslist/', VehicleApiView.as_view()),
+    path('api/v1/brands/', BrandsApiView.as_view()),
+    path('api/v1/vehicles/', VehiclesApiView.as_view()),
+    path('api/v1/vehicles/<int:id>/', VehiclesDetailApiView.as_view(), name = 'object_detail'),
 ]

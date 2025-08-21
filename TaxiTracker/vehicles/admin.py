@@ -24,7 +24,7 @@ class BrandNoneFilter(admin.SimpleListFilter):
 
 @admin.register(Brand)
 class BrandAdmin(admin.ModelAdmin):
-    list_display = ('product_name', 'vehicle_count')
+    list_display = ('id','product_name', 'vehicle_count')
 
     def vehicle_count(self,obj):
         return obj.vehicles.count()
