@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from vehicles.models import Vehicle, Brand
+from vehicles.models import Vehicle, Brand, Driver, Enterprise
 
 
 class BrandsSerializer(serializers.ModelSerializer):
@@ -13,3 +13,14 @@ class VehiclesSerializer(serializers.ModelSerializer):
         model = Vehicle
         fields =['prod_date','odometer','price','color','plate_number', 'brand']
 
+
+class DriversSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Driver
+        fields =['full_name','salary','enterprise']
+
+
+class EnterprisesSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Enterprise
+        fields =['name','city']

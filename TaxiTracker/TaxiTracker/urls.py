@@ -17,11 +17,14 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 
-from vehicles.views import VehiclesApiView, BrandsApiView, VehiclesDetailApiView
+from vehicles.views import VehiclesApiView, BrandsApiView, VehiclesDetailApiView, DriversApiView, EnterprisesApiView, DriversDetailApiView, EnterprisesDetailApiView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/v1/brands/', BrandsApiView.as_view()),
     path('api/v1/vehicles/', VehiclesApiView.as_view()),
-    path('api/v1/vehicles/<int:id>/', VehiclesDetailApiView.as_view(), name = 'object_detail'),
+    path('api/v1/drivers/', DriversApiView.as_view()),
+    path('api/v1/enterprises/', EnterprisesApiView.as_view()),
+    path('api/v1/vehicles/<int:id>/', DriversDetailApiView.as_view(), name = 'object_detail'),
+    path('api/v1/vehicles/<int:id>/', EnterprisesDetailApiView.as_view(), name = 'object_detail'),
 ]
