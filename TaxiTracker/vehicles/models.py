@@ -17,6 +17,7 @@ class Enterprise(models.Model):
 class Driver(models.Model):
     full_name = models.CharField(max_length=100)
     salary = models.IntegerField(validators=[MaxValueValidator(250000)])
+    is_active = models.BooleanField(default=False)
 
     enterprise = models.ForeignKey(Enterprise, on_delete=models.CASCADE, null=True, related_name='drivers')
 
@@ -44,11 +45,22 @@ class Vehicle(models.Model):
 
     brand = models.ForeignKey(Brand, on_delete=models.CASCADE, null = True, related_name='vehicles')
     enterprise = models.ForeignKey(Enterprise, on_delete=models.CASCADE, null=True, related_name='vehicles')
-    driver = models.ForeignKey(Driver, on_delete=models.CASCADE, null = True, related_name='vehicles')
+    driver = models.ForeignKey(Driver, on_delete=models.CASCADE, null = True, blank = True, related_name='vehicles')
 
 
     def __str__(self):
         return f"id = {self.id} Авто. Госномер {self.plate_number}. Модель - {self.brand}"
+
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)  # сначала сохраняем машину
+        if self.driver:
+            # делаем всех других водителей этой машины неактивными
+            Vehicle.objects.filter(driver=self.driver).exclude(id=self.id).update(driver=None)
+            Driver.objects.filter(vehicles__id=self.id).exclude(id=self.driver.id).update(is_active=False)
+            # делаем текущего водителя активным
+            self.driver.is_active = True
+            self.driver.save()
 
 
 

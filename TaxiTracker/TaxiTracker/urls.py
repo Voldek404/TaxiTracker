@@ -25,6 +25,7 @@ urlpatterns = [
     path('api/v1/vehicles/', VehiclesApiView.as_view()),
     path('api/v1/drivers/', DriversApiView.as_view()),
     path('api/v1/enterprises/', EnterprisesApiView.as_view()),
-    path('api/v1/vehicles/<int:id>/', DriversDetailApiView.as_view(), name = 'object_detail'),
-    path('api/v1/vehicles/<int:id>/', EnterprisesDetailApiView.as_view(), name = 'object_detail'),
+    path('api/v1/drivers/<int:id>/', DriversDetailApiView.as_view(), name = 'object_detail'),
+    path('api/v1/enterprises/<int:id>/', EnterprisesDetailApiView.as_view(), name = 'object_detail'),
+    path('api/v1/vehicles/<int:id>/', VehiclesDetailApiView.as_view(), name = 'object_detail'),
 ]

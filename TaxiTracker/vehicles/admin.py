@@ -1,5 +1,6 @@
 from django.contrib import admin
 from .models import Vehicle, Brand, Driver, Enterprise
+from .forms import VehicleAdminForm
 
 # Register your models here.
 
@@ -32,14 +33,17 @@ class BrandAdmin(admin.ModelAdmin):
 
 @admin.register(Vehicle)
 class VehicleAdmin(admin.ModelAdmin):
+    form = VehicleAdminForm
     list_filter = (BrandNoneFilter,)
-    list_display = ('id', 'plate_number', 'brand')
+    list_display = ('id', 'plate_number', 'brand', 'enterprise', 'driver')
 
 
 @admin.register(Driver)
 class DriverAdmin(admin.ModelAdmin):
-    list_display = ('id', 'full_name', 'enterprise')
+    list_display = ('id', 'full_name', 'enterprise', 'is_active')
 
 @admin.register(Enterprise)
 class EnterpriseAdmin(admin.ModelAdmin):
     list_display = ('id', 'name', 'city')
+
+
