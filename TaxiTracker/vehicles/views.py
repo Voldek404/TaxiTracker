@@ -1,8 +1,9 @@
 from django.http import JsonResponse
 from django.views.i18n import JSONCatalog
 from rest_framework import generics
-from vehicles.models import Vehicle, Brand, Driver, Enterprise
+from vehicles.models import Vehicle, Brand, Driver, Enterprise, VehicleDriver
 from vehicles.serializers import VehiclesSerializer, BrandsSerializer, DriversSerializer, EnterprisesSerializer
+from rest_framework.response import Response
 
 
 class VehiclesApiView(generics.ListAPIView):
@@ -22,7 +23,7 @@ class DriversApiView(generics.ListAPIView):
 
 
 
-class EnterprisesApiView(generics.RetrieveAPIView):
+class EnterprisesApiView(generics.ListAPIView):
     queryset = Enterprise.objects.all()
     serializer_class = EnterprisesSerializer
 

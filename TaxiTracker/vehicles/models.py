@@ -36,6 +36,27 @@ class Brand(models.Model):
     def __str__(self):
         return f"Марка авто {self.product_name}"
 
+class VehicleDriver(models.Model):
+    vehicle = models.ForeignKey("Vehicle", on_delete=models.CASCADE, related_name='vehicle_drivers')
+    driver = models.ForeignKey("Driver", on_delete=models.CASCADE)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        unique_together = ('vehicle', 'driver')
+
+    def save(self, *args, **kwargs):
+        if self.is_active:
+            VehicleDriver.objects.filter(vehicle=self.vehicle).exclude(driver=self.driver).update(is_active=False)
+
+            self.vehicle.driver = self.driver
+            self.vehicle.save()
+
+            self.driver.is_active = True
+            self.driver.save()
+
+        super().save(*args, **kwargs)
+
+
 class Vehicle(models.Model):
     prod_date = models.DateField()
     odometer = models.IntegerField(validators=[MaxValueValidator(1000000)])
@@ -45,32 +66,49 @@ class Vehicle(models.Model):
 
     brand = models.ForeignKey(Brand, on_delete=models.CASCADE, null = True, related_name='vehicles')
     enterprise = models.ForeignKey(Enterprise, on_delete=models.CASCADE, null=True, related_name='vehicles')
-    driver = models.ForeignKey(Driver, on_delete=models.CASCADE, null = True, blank = True, related_name='vehicles')
+
+    driver = models.ForeignKey("Driver", on_delete=models.SET_NULL, null=True, blank=True)
+    drivers = models.ManyToManyField("Driver", through="VehicleDriver", related_name="vehicles")
+
 
 
     def __str__(self):
         return f"id = {self.id} Авто. Госномер {self.plate_number}. Модель - {self.brand}"
 
-
     def save(self, *args, **kwargs):
-        super().save(*args, **kwargs)  # сначала сохраняем машину
+        old_driver = None
+        if self.id:
+            old_vehicle = Vehicle.objects.get(id=self.id)
+            old_driver = old_vehicle.driver
+        super().save(*args, **kwargs)
+
+        if self.driver != old_driver:
+            self._update_driver_status()
+
+    def _update_driver_status(self):
         if self.driver:
-            # делаем всех других водителей этой машины неактивными
-            Vehicle.objects.filter(driver=self.driver).exclude(id=self.id).update(driver=None)
-            Driver.objects.filter(vehicles__id=self.id).exclude(id=self.driver.id).update(is_active=False)
-            # делаем текущего водителя активным
             self.driver.is_active = True
             self.driver.save()
 
+            Vehicle.objects.filter(driver=self.driver).exclude(id=self.id).update(driver=None)
+
+        if self.driver:
+            other_drivers = self.drivers.exclude(id=self.driver.id)
+        else:
+            other_drivers = self.drivers.all()
+
+        other_drivers.update(is_active=False)
+
+        if self.driver:
+            VehicleDriver.objects.filter(vehicle=self).exclude(driver=self.driver).update(is_active=False)
+            VehicleDriver.objects.filter(vehicle=self, driver=self.driver).update(is_active=True)
+        else:
+            VehicleDriver.objects.filter(vehicle=self).update(is_active=False)
 
 
 
-"""
-установить ключи один к одному для машины по отношению к предприятию
-в админке машинки после выбора предприятия сузить выбор водителей только до тех, кто находится в данном предприятии
-добавить признак активности для конкретного водителя ( новый филд?)
 
-"""
+
 
 
 
