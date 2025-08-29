@@ -12,7 +12,6 @@ class VehicleDriverInline(admin.TabularInline):
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if db_field.name == "driver":
-            # Ограничиваем водителей только теми, кто из того же предприятия
             if request._obj_ is not None:
                 kwargs["queryset"] = Driver.objects.filter(enterprise=request._obj_.enterprise)
         return super().formfield_for_foreignkey(db_field, request, **kwargs)

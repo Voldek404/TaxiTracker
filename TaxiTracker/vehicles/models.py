@@ -17,7 +17,14 @@ class Enterprise(models.Model):
 class Driver(models.Model):
     full_name = models.CharField(max_length=100)
     salary = models.IntegerField(validators=[MaxValueValidator(250000)])
-    is_active = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    active_vehicle = models.ForeignKey(
+        'Vehicle',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="active_drivers"
+    )
 
     enterprise = models.ForeignKey(Enterprise, on_delete=models.CASCADE, null=True, related_name='drivers')
 
@@ -38,7 +45,8 @@ class Brand(models.Model):
 
 class VehicleDriver(models.Model):
     vehicle = models.ForeignKey("Vehicle", on_delete=models.CASCADE, related_name='vehicle_drivers')
-    driver = models.ForeignKey("Driver", on_delete=models.CASCADE)
+    driver = models.ForeignKey("Driver", on_delete=models.CASCADE, related_name='vehicle_drivers')
+
     is_active = models.BooleanField(default=True)
 
     class Meta:
