@@ -10,11 +10,10 @@ class BrandsSerializer(serializers.ModelSerializer):
 
 
 class VehiclesSerializer(serializers.ModelSerializer):
-    drivers = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
 
     class Meta:
         model = Vehicle
-        fields = ['id', 'plate_number', 'prod_date', 'odometer', 'price', 'color', 'brand', 'drivers']
+        fields = ['id', 'plate_number', 'prod_date', 'odometer', 'price', 'color', 'brand']
 
 
 class DriversSerializer(serializers.ModelSerializer):
@@ -29,13 +28,13 @@ class DriversSerializer(serializers.ModelSerializer):
         vehicles_qs = Vehicle.objects.filter(vehicle_drivers__driver=obj)
         if vehicles_qs.exists():
             return list(vehicles_qs.values_list('id', flat=True))
-        return None
+        return []
 
     def get_active_vehicle(self, obj):
-        active_vds = obj.vehicle_drivers.filter(is_active=True)
-        return [
-            vd.vehicle.id for vd in active_vds
-        ] or None
+        active_vds = obj.vehicle_drivers.filter(is_active=True).values_list('vehicle__id', flat=True).first()
+        if active_vds:
+            return active_vds
+        return -1
 
 
 class EnterprisesSerializer(serializers.ModelSerializer):
