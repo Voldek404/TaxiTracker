@@ -68,18 +68,52 @@ class VehicleAdmin(admin.ModelAdmin):
         request._obj_ = obj
         return super().get_form(request, obj, **kwargs)
 
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if request.user.is_superuser:
+            return qs
+        if hasattr(request.user, 'managers'):
+            return qs.filter(enterprise__in=request.user.managers.enterprises.all())
+        return qs.none()
+
 
 
 @admin.register(Driver)
 class DriverAdmin(admin.ModelAdmin):
     list_display = ('id', 'full_name', 'enterprise', 'is_active')
 
+
+
 @admin.register(Enterprise)
 class EnterpriseAdmin(admin.ModelAdmin):
     list_display = ('id', 'name', 'city')
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if request.user.is_superuser:
+            return qs
+        if hasattr(request.user, 'managers'):
+            return qs.filter(id__in=request.user.managers.enterprises.all())
+        return qs.none()
+
 
 
 @admin.register(Manager)
 class ManagerAdmin(admin.ModelAdmin):
     filter_horizontal = ['enterprises']
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if request.user.is_superuser:
+            return qs
+        if hasattr(request.user, 'managers'):
+            return qs.filter(id=request.user.managers.id)
+        return qs.none()
+
+
+
+
+
+
+
 

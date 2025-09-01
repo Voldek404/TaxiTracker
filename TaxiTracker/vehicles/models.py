@@ -11,6 +11,7 @@ class Enterprise(models.Model):
     city = models.CharField(max_length=50)
 
 
+
     def __str__(self):
         return f"id = {self.id} Наименование предприятия - {self.name}. Расположение - {self.city}"
 
@@ -129,13 +130,3 @@ class Manager(models.Model):
 
     def __str__(self):
         return f"id = {self.id} ФИО - {self.full_name}. "
-
-
-
-
-
-
-
-
-
-
