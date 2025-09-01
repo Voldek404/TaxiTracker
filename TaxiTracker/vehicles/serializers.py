@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from vehicles.models import Vehicle, Brand, Driver, Enterprise, VehicleDriver
+from vehicles.models import Vehicle, Brand, Driver, Enterprise, VehicleDriver, Manager
 
 
 class BrandsSerializer(serializers.ModelSerializer):
@@ -44,3 +44,23 @@ class EnterprisesSerializer(serializers.ModelSerializer):
     class Meta:
         model = Enterprise
         fields = ['name', 'city', 'vehicles', 'drivers']
+
+class ManagersSerializer(serializers.ModelSerializer):
+    vehicles = serializers.SerializerMethodField()
+    drivers = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Manager
+        fields = ['full_name', 'enterprises', 'vehicles', 'drivers']
+
+    def get_drivers(self, obj):
+        drivers = Driver.objects.filter(
+            enterprise__in=obj.enterprises.all()
+        ).values_list('id', flat=True)
+        return list(drivers)
+
+    def get_vehicles(self, obj):
+        vehicles = Vehicle.objects.filter(
+            enterprise__in=obj.enterprises.all()
+        ).values_list('id', flat=True)
+        return list(vehicles)

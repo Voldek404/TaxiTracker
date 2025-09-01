@@ -17,7 +17,8 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 
-from vehicles.views import VehiclesApiView, BrandsApiView, VehiclesDetailApiView, DriversApiView, EnterprisesApiView, DriversDetailApiView, EnterprisesDetailApiView
+from vehicles.views import (VehiclesApiView, BrandsApiView, VehiclesDetailApiView,
+                            DriversApiView, EnterprisesApiView, DriversDetailApiView, EnterprisesDetailApiView,ManagersApiView,ManagersDetailApiView )
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -25,7 +26,10 @@ urlpatterns = [
     path('api/v1/vehicles/', VehiclesApiView.as_view()),
     path('api/v1/drivers/', DriversApiView.as_view()),
     path('api/v1/enterprises/', EnterprisesApiView.as_view()),
+    path('api/v1/managers/', ManagersApiView.as_view()),
     path('api/v1/drivers/<int:id>/', DriversDetailApiView.as_view(), name = 'object_detail'),
     path('api/v1/enterprises/<int:id>/', EnterprisesDetailApiView.as_view(), name = 'object_detail'),
     path('api/v1/vehicles/<int:id>/', VehiclesDetailApiView.as_view(), name = 'object_detail'),
+    path('api/v1/managers/<int:id>/', ManagersDetailApiView.as_view(), name = 'object_detail'),
+
 ]

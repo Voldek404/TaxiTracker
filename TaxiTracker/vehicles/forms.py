@@ -13,11 +13,9 @@ class VehicleAdminForm(forms.ModelForm):
 
         enterprise = None
 
-        # Если редактируем существующий объект
         if self.instance and self.instance.pk:
             enterprise = self.instance.enterprise
         else:
-            # Если создаем новый объект, пытаемся получить из данных формы
             data = self.data or None
             if data and 'enterprise' in data:
                 try:
@@ -33,5 +31,4 @@ class VehicleAdminForm(forms.ModelForm):
                 is_active=False
             )
         else:
-            # Если предприятие не выбрано, показываем пустой queryset
             self.fields['driver'].queryset = Driver.objects.none()

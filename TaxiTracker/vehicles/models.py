@@ -2,6 +2,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.contrib import admin
 from django.db.models.fields import IntegerField
+from django.contrib.auth.models import User
 
 
 
@@ -114,6 +115,21 @@ class Vehicle(models.Model):
             VehicleDriver.objects.filter(vehicle=self, driver=self.driver).update(is_active=True)
         else:
             VehicleDriver.objects.filter(vehicle=self).update(is_active=False)
+
+
+class Manager(models.Model):
+    full_name = models.CharField(max_length=50)
+    city = models.CharField(max_length=50)
+    enterprises = models.ManyToManyField(
+        Enterprise,
+        related_name='managers',
+        blank=True
+    )
+    user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True, related_name='managers')
+
+    def __str__(self):
+        return f"id = {self.id} ФИО - {self.full_name}. "
+
 
 
 

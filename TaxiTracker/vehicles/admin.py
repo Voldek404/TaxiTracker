@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Vehicle, Brand, Driver, Enterprise, VehicleDriver
+from .models import Vehicle, Brand, Driver, Enterprise, VehicleDriver, Manager
 from .forms import VehicleAdminForm
 
 # Register your models here.
@@ -78,4 +78,8 @@ class DriverAdmin(admin.ModelAdmin):
 class EnterpriseAdmin(admin.ModelAdmin):
     list_display = ('id', 'name', 'city')
 
+
+@admin.register(Manager)
+class ManagerAdmin(admin.ModelAdmin):
+    filter_horizontal = ['enterprises']
 

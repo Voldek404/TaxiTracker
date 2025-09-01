@@ -1,8 +1,8 @@
 from django.http import JsonResponse
 from django.views.i18n import JSONCatalog
 from rest_framework import generics
-from vehicles.models import Vehicle, Brand, Driver, Enterprise, VehicleDriver
-from vehicles.serializers import VehiclesSerializer, BrandsSerializer, DriversSerializer, EnterprisesSerializer
+from vehicles.models import Vehicle, Brand, Driver, Enterprise, VehicleDriver, Manager
+from vehicles.serializers import VehiclesSerializer, BrandsSerializer, DriversSerializer, EnterprisesSerializer, ManagersSerializer
 from rest_framework.response import Response
 
 
@@ -43,4 +43,15 @@ class DriversDetailApiView(generics.RetrieveAPIView):
 class EnterprisesDetailApiView(generics.RetrieveAPIView):
     queryset = Enterprise.objects.all()
     serializer_class = EnterprisesSerializer
+    lookup_field = 'id'
+
+
+class ManagersApiView(generics.ListAPIView):
+    queryset = Manager.objects.all()
+    serializer_class = ManagersSerializer
+
+
+class ManagersDetailApiView(generics.RetrieveAPIView):
+    queryset = Manager.objects.all()
+    serializer_class = ManagersSerializer
     lookup_field = 'id'
