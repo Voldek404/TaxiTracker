@@ -15,7 +15,7 @@ class VehiclesApiView(generics.ListAPIView):
         if user.is_superuser:
             return Vehicle.objects.all()
         if hasattr(user, 'managers'):
-            return Vehicle.objects.filter(enterprise__manager=user.manager)
+            return Vehicle.objects.filter(enterprise__in=user.managers.enterprises.all())
         return Vehicle.objects.none()
 
 
@@ -29,11 +29,26 @@ class DriversApiView(generics.ListAPIView):
     queryset = Driver.objects.all()
     serializer_class = DriversSerializer
 
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser:
+            return Driver.objects.all()
+        if hasattr(user, 'managers'):
+            return Driver.objects.filter(enterprise__in=user.managers.enterprises.all())
+        return Driver.objects.none()
 
 
 class EnterprisesApiView(generics.ListAPIView):
     queryset = Enterprise.objects.all()
     serializer_class = EnterprisesSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser:
+            return Enterprise.objects.all()
+        if hasattr(user, 'managers'):
+            return user.managers.enterprises.all()
+        return Enterprise.objects.none()
 
 
 class VehiclesDetailApiView(generics.RetrieveAPIView):
@@ -45,8 +60,8 @@ class VehiclesDetailApiView(generics.RetrieveAPIView):
         user = self.request.user
         if user.is_superuser:
             return Vehicle.objects.all()
-        if hasattr(user, 'manager'):
-            return Vehicle.objects.filter(enterprise__manager=user.manager)
+        if hasattr(user, 'managers'):
+            return Vehicle.objects.filter(enterprise__in=user.managers.enterprises.all())
         return Vehicle.objects.none()
 
 
@@ -56,10 +71,20 @@ class DriversDetailApiView(generics.RetrieveAPIView):
     lookup_field = 'id'
 
 
+
+
 class EnterprisesDetailApiView(generics.RetrieveAPIView):
     queryset = Enterprise.objects.all()
     serializer_class = EnterprisesSerializer
     lookup_field = 'id'
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser:
+            return Enterprise.objects.all()
+        if hasattr(user, 'managers'):
+            return user.managers.enterprises.all()
+        return Enterprise.objects.none()
 
 
 class ManagersApiView(generics.ListAPIView):
