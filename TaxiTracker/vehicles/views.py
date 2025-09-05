@@ -5,12 +5,22 @@ from vehicles.serializers import VehiclesSerializer, BrandsSerializer, DriversSe
 from rest_framework.response import Response
 from django.views.decorators.csrf import csrf_protect
 from django.utils.decorators import method_decorator
+from rest_framework.authentication import SessionAuthentication, BasicAuthentication
+from rest_framework.permissions import IsAuthenticated
 
 
-@method_decorator(csrf_protect, name='dispatch')
+
+
+
 class VehiclesApiView(generics.ListCreateAPIView):
     queryset = Vehicle.objects.all()
     serializer_class = VehiclesSerializer
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [SessionAuthentication]
+
+    @method_decorator(csrf_protect)
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
 
     def get_queryset(self):
         user = self.request.user
