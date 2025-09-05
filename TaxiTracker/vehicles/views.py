@@ -3,10 +3,12 @@ from rest_framework import generics
 from vehicles.models import Vehicle, Brand, Driver, Enterprise, VehicleDriver, Manager
 from vehicles.serializers import VehiclesSerializer, BrandsSerializer, DriversSerializer, EnterprisesSerializer, ManagersSerializer
 from rest_framework.response import Response
+from django.views.decorators.csrf import csrf_protect
+from django.utils.decorators import method_decorator
 
 
-
-class VehiclesApiView(generics.ListAPIView):
+@method_decorator(csrf_protect, name='dispatch')
+class VehiclesApiView(generics.ListCreateAPIView):
     queryset = Vehicle.objects.all()
     serializer_class = VehiclesSerializer
 

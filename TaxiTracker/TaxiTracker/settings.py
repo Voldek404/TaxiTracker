@@ -85,6 +85,9 @@ DATABASES = {
         'PASSWORD': '051587',
         'HOST': 'localhost',
         'PORT': '5432',
+        'TEST': {
+            "MIRROR": "default",
+        },
     }
 }
 
