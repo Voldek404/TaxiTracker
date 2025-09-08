@@ -17,8 +17,11 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 
+
 from vehicles.views import (VehiclesApiView, BrandsApiView, VehiclesDetailApiView,
                             DriversApiView, EnterprisesApiView, DriversDetailApiView, EnterprisesDetailApiView,ManagersApiView,ManagersDetailApiView )
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenVerifyView
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -31,5 +34,8 @@ urlpatterns = [
     path('api/v1/enterprises/<int:id>/', EnterprisesDetailApiView.as_view(), name = 'object_detail'),
     path('api/v1/vehicles/<int:id>/', VehiclesDetailApiView.as_view(), name = 'object_detail'),
     path('api/v1/managers/<int:id>/', ManagersDetailApiView.as_view(), name = 'object_detail'),
+    path('api/v1/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/v1/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/v1/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
 
 ]
