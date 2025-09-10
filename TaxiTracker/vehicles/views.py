@@ -34,7 +34,8 @@ class VehiclesApiView(generics.ListCreateAPIView):
 class BrandsApiView(generics.ListCreateAPIView):
     queryset = Brand.objects.all()
     serializer_class = BrandsSerializer
-
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
 
 
 class DriversApiView(generics.ListCreateAPIView):
@@ -53,6 +54,8 @@ class DriversApiView(generics.ListCreateAPIView):
 class EnterprisesApiView(generics.ListCreateAPIView):
     queryset = Enterprise.objects.all()
     serializer_class = EnterprisesSerializer
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
 
     def get_queryset(self):
         user = self.request.user
@@ -67,6 +70,8 @@ class VehiclesDetailApiView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Vehicle.objects.all()
     serializer_class = VehiclesSerializer
     lookup_field = 'id'
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
 
     def get_queryset(self):
         user = self.request.user
@@ -81,7 +86,8 @@ class DriversDetailApiView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Driver.objects.all()
     serializer_class = DriversSerializer
     lookup_field = 'id'
-
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
 
 
 
@@ -89,6 +95,8 @@ class EnterprisesDetailApiView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Enterprise.objects.all()
     serializer_class = EnterprisesSerializer
     lookup_field = 'id'
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
 
     def get_queryset(self):
         user = self.request.user
@@ -102,12 +110,16 @@ class EnterprisesDetailApiView(generics.RetrieveUpdateDestroyAPIView):
 class ManagersApiView(generics.ListCreateAPIView):
     queryset = Manager.objects.all()
     serializer_class = ManagersSerializer
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
 
 
 class ManagersDetailApiView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Manager.objects.all()
     serializer_class = ManagersSerializer
     lookup_field = 'id'
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
 
 
 
