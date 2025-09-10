@@ -19,7 +19,6 @@ class VehiclesApiView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
 
-    #@method_decorator(csrf_protect)
     def dispatch(self, *args, **kwargs):
         return super().dispatch(*args, **kwargs)
 
@@ -32,13 +31,13 @@ class VehiclesApiView(generics.ListCreateAPIView):
         return Vehicle.objects.none()
 
 
-class BrandsApiView(generics.ListAPIView):
+class BrandsApiView(generics.ListCreateAPIView):
     queryset = Brand.objects.all()
     serializer_class = BrandsSerializer
 
 
 
-class DriversApiView(generics.ListAPIView):
+class DriversApiView(generics.ListCreateAPIView):
     queryset = Driver.objects.all()
     serializer_class = DriversSerializer
 
@@ -51,7 +50,7 @@ class DriversApiView(generics.ListAPIView):
         return Driver.objects.none()
 
 
-class EnterprisesApiView(generics.ListAPIView):
+class EnterprisesApiView(generics.ListCreateAPIView):
     queryset = Enterprise.objects.all()
     serializer_class = EnterprisesSerializer
 
@@ -64,7 +63,7 @@ class EnterprisesApiView(generics.ListAPIView):
         return Enterprise.objects.none()
 
 
-class VehiclesDetailApiView(generics.RetrieveAPIView):
+class VehiclesDetailApiView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Vehicle.objects.all()
     serializer_class = VehiclesSerializer
     lookup_field = 'id'
@@ -78,7 +77,7 @@ class VehiclesDetailApiView(generics.RetrieveAPIView):
         return Vehicle.objects.none()
 
 
-class DriversDetailApiView(generics.RetrieveAPIView):
+class DriversDetailApiView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Driver.objects.all()
     serializer_class = DriversSerializer
     lookup_field = 'id'
@@ -86,7 +85,7 @@ class DriversDetailApiView(generics.RetrieveAPIView):
 
 
 
-class EnterprisesDetailApiView(generics.RetrieveAPIView):
+class EnterprisesDetailApiView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Enterprise.objects.all()
     serializer_class = EnterprisesSerializer
     lookup_field = 'id'
@@ -100,12 +99,12 @@ class EnterprisesDetailApiView(generics.RetrieveAPIView):
         return Enterprise.objects.none()
 
 
-class ManagersApiView(generics.ListAPIView):
+class ManagersApiView(generics.ListCreateAPIView):
     queryset = Manager.objects.all()
     serializer_class = ManagersSerializer
 
 
-class ManagersDetailApiView(generics.RetrieveAPIView):
+class ManagersDetailApiView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Manager.objects.all()
     serializer_class = ManagersSerializer
     lookup_field = 'id'
