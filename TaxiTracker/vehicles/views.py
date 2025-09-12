@@ -8,6 +8,7 @@ from django.utils.decorators import method_decorator
 from rest_framework.authentication import BasicAuthentication
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import PermissionDenied
 
 
 
@@ -19,16 +20,18 @@ class VehiclesApiView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
 
+    def perform_create(self, serializer):
+        user = self.request.user
+        serializer.save(enterprise=user.managers.enterprises.first())
+
     def dispatch(self, *args, **kwargs):
         return super().dispatch(*args, **kwargs)
 
     def get_queryset(self):
         user = self.request.user
-        if user.is_superuser:
-            return Vehicle.objects.all()
         if hasattr(user, 'managers'):
             return Vehicle.objects.filter(enterprise__in=user.managers.enterprises.all())
-        return Vehicle.objects.none()
+        raise PermissionDenied("У вас нет прав на просмотр")
 
 
 class BrandsApiView(generics.ListCreateAPIView):
@@ -38,17 +41,17 @@ class BrandsApiView(generics.ListCreateAPIView):
     authentication_classes = [JWTAuthentication]
 
 
+
+
 class DriversApiView(generics.ListCreateAPIView):
     queryset = Driver.objects.all()
     serializer_class = DriversSerializer
 
     def get_queryset(self):
         user = self.request.user
-        if user.is_superuser:
-            return Driver.objects.all()
         if hasattr(user, 'managers'):
             return Driver.objects.filter(enterprise__in=user.managers.enterprises.all())
-        return Driver.objects.none()
+        raise PermissionDenied("У вас нет прав на просмотр")
 
 
 class EnterprisesApiView(generics.ListCreateAPIView):
@@ -57,54 +60,58 @@ class EnterprisesApiView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
 
+    def perform_create(self, serializer):
+        user = self.request.user
+        if hasattr(user, 'managers'):
+            serializer.save(manager=user.managers)
+            return
+        raise PermissionDenied("У вас нет прав на создание предприятия")
+
     def get_queryset(self):
         user = self.request.user
-        if user.is_superuser:
-            return Enterprise.objects.all()
         if hasattr(user, 'managers'):
             return user.managers.enterprises.all()
-        return Enterprise.objects.none()
+        raise PermissionDenied("У вас нет прав на просмотр")
 
 
 class VehiclesDetailApiView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Vehicle.objects.all()
     serializer_class = VehiclesSerializer
-    lookup_field = 'id'
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
 
     def get_queryset(self):
         user = self.request.user
-        if user.is_superuser:
-            return Vehicle.objects.all()
         if hasattr(user, 'managers'):
             return Vehicle.objects.filter(enterprise__in=user.managers.enterprises.all())
-        return Vehicle.objects.none()
+        raise PermissionDenied("У вас нет прав на просмотр")
 
 
 class DriversDetailApiView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Driver.objects.all()
     serializer_class = DriversSerializer
-    lookup_field = 'id'
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
+
+    def get_queryset(self):
+        user = self.request.user
+        if hasattr(user, 'managers'):
+            return Driver.objects.filter(enterprise__in=user.managers.enterprises.all())
+        raise PermissionDenied("У вас нет прав на просмотр")
 
 
 
 class EnterprisesDetailApiView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Enterprise.objects.all()
     serializer_class = EnterprisesSerializer
-    lookup_field = 'id'
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
 
     def get_queryset(self):
         user = self.request.user
-        if user.is_superuser:
-            return Enterprise.objects.all()
         if hasattr(user, 'managers'):
             return user.managers.enterprises.all()
-        return Enterprise.objects.none()
+        raise PermissionDenied("У вас нет прав на просмотр")
 
 
 class ManagersApiView(generics.ListCreateAPIView):
@@ -117,7 +124,6 @@ class ManagersApiView(generics.ListCreateAPIView):
 class ManagersDetailApiView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Manager.objects.all()
     serializer_class = ManagersSerializer
-    lookup_field = 'id'
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
 
