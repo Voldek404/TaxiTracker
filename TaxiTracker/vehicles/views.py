@@ -9,6 +9,8 @@ from rest_framework.authentication import BasicAuthentication
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
+from django.http import HttpResponse, HttpResponseNotFound, HttpResponseForbidden, HttpResponseBadRequest
+from django.shortcuts import get_object_or_404
 
 
 
@@ -30,8 +32,10 @@ class VehiclesApiView(generics.ListCreateAPIView):
     def get_queryset(self):
         user = self.request.user
         if hasattr(user, 'managers'):
-            return Vehicle.objects.filter(enterprise__in=user.managers.enterprises.all())
+            return Vehicle.objects.filter(enterprise__in=user.enterprises.all())
         raise PermissionDenied("У вас нет прав на просмотр")
+
+
 
 
 class BrandsApiView(generics.ListCreateAPIView):
@@ -39,6 +43,12 @@ class BrandsApiView(generics.ListCreateAPIView):
     serializer_class = BrandsSerializer
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
+
+    def get_queryset(self):
+        user = self.request.user
+        if hasattr(user, 'managers'):
+            return Vehicle.objects.filter(enterprise__in=user.managers.enterprises.all())
+        raise PermissionDenied("У вас нет прав на просмотр")
 
 
 
@@ -82,9 +92,13 @@ class VehiclesDetailApiView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         user = self.request.user
+        obj = get_object_or_404(Vehicle, pk=self.kwargs['pk'])
         if hasattr(user, 'managers'):
-            return Vehicle.objects.filter(enterprise__in=user.managers.enterprises.all())
-        raise PermissionDenied("У вас нет прав на просмотр")
+            if not user.managers.enterprises.filter(pk=obj.enterprise_id).exists():
+                raise PermissionDenied("У вас нет прав на просмотр этой машины")
+        else:
+            raise PermissionDenied("У вас нет прав на просмотр")
+        return obj
 
 
 class DriversDetailApiView(generics.RetrieveUpdateDestroyAPIView):
