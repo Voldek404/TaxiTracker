@@ -17,11 +17,10 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 
-
 from vehicles.views import (VehiclesApiView, BrandsApiView, VehiclesDetailApiView,
-                            DriversApiView, EnterprisesApiView, DriversDetailApiView, EnterprisesDetailApiView,ManagersApiView,ManagersDetailApiView )
+                            DriversApiView, EnterprisesApiView, DriversDetailApiView, EnterprisesDetailApiView,
+                            ManagersApiView, ManagersDetailApiView)
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenVerifyView
-
 
 urlpatterns = [
     path('admin/', admin.site.urls),

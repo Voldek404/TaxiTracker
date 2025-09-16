@@ -2,8 +2,8 @@ from django.contrib import admin
 from .models import Vehicle, Brand, Driver, Enterprise, VehicleDriver, Manager
 from .forms import VehicleAdminForm
 
-# Register your models here.
 
+# Register your models here.
 
 
 class VehicleDriverInline(admin.TabularInline):
@@ -15,6 +15,7 @@ class VehicleDriverInline(admin.TabularInline):
             if request._obj_ is not None:
                 kwargs["queryset"] = Driver.objects.filter(enterprise=request._obj_.enterprise)
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
 
 class BrandNoneFilter(admin.SimpleListFilter):
     title = 'бренд'
@@ -35,11 +36,13 @@ class BrandNoneFilter(admin.SimpleListFilter):
 
 @admin.register(Brand)
 class BrandAdmin(admin.ModelAdmin):
-    list_display = ('id','product_name', 'vehicle_count')
+    list_display = ('id', 'product_name', 'vehicle_count')
 
-    def vehicle_count(self,obj):
+    def vehicle_count(self, obj):
         return obj.vehicles.count()
+
     vehicle_count.short_description = 'Количество машин'
+
 
 @admin.register(Vehicle)
 class VehicleAdmin(admin.ModelAdmin):
@@ -77,11 +80,9 @@ class VehicleAdmin(admin.ModelAdmin):
         return qs.none()
 
 
-
 @admin.register(Driver)
 class DriverAdmin(admin.ModelAdmin):
     list_display = ('id', 'full_name', 'enterprise', 'is_active')
-
 
 
 @admin.register(Enterprise)
@@ -97,7 +98,6 @@ class EnterpriseAdmin(admin.ModelAdmin):
         return qs.none()
 
 
-
 @admin.register(Manager)
 class ManagerAdmin(admin.ModelAdmin):
     filter_horizontal = ['enterprises']
@@ -109,11 +109,3 @@ class ManagerAdmin(admin.ModelAdmin):
         if hasattr(request.user, 'managers'):
             return qs.filter(id=request.user.managers.id)
         return qs.none()
-
-
-
-
-
-
-
-

@@ -1,7 +1,7 @@
-
 from rest_framework import generics
 from vehicles.models import Vehicle, Brand, Driver, Enterprise, VehicleDriver, Manager
-from vehicles.serializers import VehiclesSerializer, BrandsSerializer, DriversSerializer, EnterprisesSerializer, ManagersSerializer
+from vehicles.serializers import VehiclesSerializer, BrandsSerializer, DriversSerializer, EnterprisesSerializer, \
+    ManagersSerializer
 from rest_framework.response import Response
 from django.views.decorators.csrf import csrf_protect
 from django.utils.decorators import method_decorator
@@ -11,9 +11,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
 from django.http import HttpResponse, HttpResponseNotFound, HttpResponseForbidden, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404
-
-
-
+from django.shortcuts import render
+from rest_framework import status
 
 
 class VehiclesApiView(generics.ListCreateAPIView):
@@ -21,6 +20,12 @@ class VehiclesApiView(generics.ListCreateAPIView):
     serializer_class = VehiclesSerializer
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
+
+    def handle_exception(self, exc):
+        response = super().handle_exception(exc)
+        if isinstance(exc, PermissionDenied):
+            return Response({"ОШИБКА"}, status=status.HTTP_400_BAD_REQUEST)
+        return response
 
     def perform_create(self, serializer):
         user = self.request.user
@@ -32,10 +37,29 @@ class VehiclesApiView(generics.ListCreateAPIView):
     def get_queryset(self):
         user = self.request.user
         if hasattr(user, 'managers'):
-            return Vehicle.objects.filter(enterprise__in=user.enterprises.all())
+            return Vehicle.objects.filter(enterprise__in=user.managers.enterprises.all())
         raise PermissionDenied("У вас нет прав на просмотр")
 
 
+class VehiclesDetailApiView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Vehicle.objects.all()
+    serializer_class = VehiclesSerializer
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
+    def get_object(self):
+        user = self.request.user
+        pk = self.kwargs['pk']
+        try:
+            obj = Vehicle._base_manager.get(pk=pk)
+        except Vehicle.DoesNotExist:
+            raise Http404
+        if hasattr(user, 'managers'):
+            if not user.managers.enterprises.filter(pk=obj.enterprise_id).exists():
+                raise PermissionDenied("У вас нет прав на просмотр этой машины")
+        else:
+            raise PermissionDenied("У вас нет прав на просмотр")
+        return obj
 
 
 class BrandsApiView(generics.ListCreateAPIView):
@@ -49,8 +73,6 @@ class BrandsApiView(generics.ListCreateAPIView):
         if hasattr(user, 'managers'):
             return Vehicle.objects.filter(enterprise__in=user.managers.enterprises.all())
         raise PermissionDenied("У вас нет прав на просмотр")
-
-
 
 
 class DriversApiView(generics.ListCreateAPIView):
@@ -84,23 +106,6 @@ class EnterprisesApiView(generics.ListCreateAPIView):
         raise PermissionDenied("У вас нет прав на просмотр")
 
 
-class VehiclesDetailApiView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Vehicle.objects.all()
-    serializer_class = VehiclesSerializer
-    permission_classes = [IsAuthenticated]
-    authentication_classes = [JWTAuthentication]
-
-    def get_queryset(self):
-        user = self.request.user
-        obj = get_object_or_404(Vehicle, pk=self.kwargs['pk'])
-        if hasattr(user, 'managers'):
-            if not user.managers.enterprises.filter(pk=obj.enterprise_id).exists():
-                raise PermissionDenied("У вас нет прав на просмотр этой машины")
-        else:
-            raise PermissionDenied("У вас нет прав на просмотр")
-        return obj
-
-
 class DriversDetailApiView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Driver.objects.all()
     serializer_class = DriversSerializer
@@ -112,7 +117,6 @@ class DriversDetailApiView(generics.RetrieveUpdateDestroyAPIView):
         if hasattr(user, 'managers'):
             return Driver.objects.filter(enterprise__in=user.managers.enterprises.all())
         raise PermissionDenied("У вас нет прав на просмотр")
-
 
 
 class EnterprisesDetailApiView(generics.RetrieveUpdateDestroyAPIView):
@@ -140,6 +144,3 @@ class ManagersDetailApiView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ManagersSerializer
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
-
-
-

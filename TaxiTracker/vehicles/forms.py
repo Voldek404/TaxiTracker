@@ -25,10 +25,12 @@ class VehicleAdminForm(forms.ModelForm):
             elif 'enterprise' in self.initial:
                 enterprise = self.initial['enterprise']
 
-        if enterprise:
-            self.fields['driver'].queryset = Driver.objects.filter(
-                enterprise_id=enterprise,
-                is_active=False
-            )
-        else:
-            self.fields['driver'].queryset = Driver.objects.none()
+            # ✅ безопасно проверяем наличие поля driver
+        if 'driver' in self.fields:
+            if enterprise:
+                self.fields['driver'].queryset = Driver.objects.filter(
+                    enterprise_id=enterprise,
+                    is_active=False
+                )
+            else:
+                self.fields['driver'].queryset = Driver.objects.none()

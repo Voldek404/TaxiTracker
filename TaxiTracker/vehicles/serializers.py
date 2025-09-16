@@ -10,7 +10,6 @@ class BrandsSerializer(serializers.ModelSerializer):
 
 
 class VehiclesSerializer(serializers.ModelSerializer):
-
     class Meta:
         model = Vehicle
         fields = ['id', 'plate_number', 'prod_date', 'odometer', 'price', 'color', 'brand']
@@ -44,6 +43,7 @@ class EnterprisesSerializer(serializers.ModelSerializer):
     class Meta:
         model = Enterprise
         fields = ['name', 'city', 'vehicles', 'drivers']
+
 
 class ManagersSerializer(serializers.ModelSerializer):
     vehicles = serializers.SerializerMethodField()
