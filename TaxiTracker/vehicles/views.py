@@ -7,18 +7,25 @@ from django.views.decorators.csrf import csrf_protect
 from django.utils.decorators import method_decorator
 from rest_framework.authentication import BasicAuthentication
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.permissions import DjangoModelPermissions,DjangoObjectPermissions, IsAuthenticated
+from rest_framework.exceptions import PermissionDenied, APIException
 from django.http import HttpResponse, HttpResponseNotFound, HttpResponseForbidden, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404
 from django.shortcuts import render
 from rest_framework import status
 
 
+
+class ConflictError(APIException):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "Запрещенная операция"
+    default_code = "conflict"
+
+
 class VehiclesApiView(generics.ListCreateAPIView):
     queryset = Vehicle.objects.all()
     serializer_class = VehiclesSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [DjangoModelPermissions]
     authentication_classes = [JWTAuthentication]
 
     def handle_exception(self, exc):
@@ -28,8 +35,11 @@ class VehiclesApiView(generics.ListCreateAPIView):
         return response
 
     def perform_create(self, serializer):
-        user = self.request.user
-        serializer.save(enterprise=user.managers.enterprises.first())
+        try:
+            manager = Manager.objects.get(user=self.request.user)
+            serializer.save(enterprise=manager.enterprises.first())
+        except Manager.DoesNotExist:
+            raise PermissionDenied("У вас нет прав на создание автомобиля")
 
     def dispatch(self, *args, **kwargs):
         return super().dispatch(*args, **kwargs)
@@ -54,18 +64,20 @@ class VehiclesDetailApiView(generics.RetrieveUpdateDestroyAPIView):
             obj = Vehicle._base_manager.get(pk=pk)
         except Vehicle.DoesNotExist:
             raise Http404
+
         if hasattr(user, 'managers'):
             if not user.managers.enterprises.filter(pk=obj.enterprise_id).exists():
                 raise PermissionDenied("У вас нет прав на просмотр этой машины")
-        else:
-            raise PermissionDenied("У вас нет прав на просмотр")
+        if self.request.method == "DELETE"  and not user.is_superuser:
+            raise ConflictError()
+
         return obj
 
 
 class BrandsApiView(generics.ListCreateAPIView):
     queryset = Brand.objects.all()
     serializer_class = BrandsSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [DjangoModelPermissions]
     authentication_classes = [JWTAuthentication]
 
     def get_queryset(self):
@@ -78,6 +90,8 @@ class BrandsApiView(generics.ListCreateAPIView):
 class DriversApiView(generics.ListCreateAPIView):
     queryset = Driver.objects.all()
     serializer_class = DriversSerializer
+    permission_classes = [DjangoModelPermissions]
+    authentication_classes = [JWTAuthentication]
 
     def get_queryset(self):
         user = self.request.user
@@ -89,7 +103,7 @@ class DriversApiView(generics.ListCreateAPIView):
 class EnterprisesApiView(generics.ListCreateAPIView):
     queryset = Enterprise.objects.all()
     serializer_class = EnterprisesSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [DjangoModelPermissions]
     authentication_classes = [JWTAuthentication]
 
     def perform_create(self, serializer):
@@ -135,7 +149,7 @@ class EnterprisesDetailApiView(generics.RetrieveUpdateDestroyAPIView):
 class ManagersApiView(generics.ListCreateAPIView):
     queryset = Manager.objects.all()
     serializer_class = ManagersSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [DjangoModelPermissions]
     authentication_classes = [JWTAuthentication]
 
 
