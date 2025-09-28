@@ -18,10 +18,12 @@ def update_driver_activity(sender, instance, **kwargs):
 
 @receiver(pre_save, sender=Driver)
 def deactivate_driver(sender, instance, **kwargs):
-    if not instance.pk:
-        # Новый водитель, игнорируем
+    if kwargs.get('raw', False):
         return
-    previous = Driver.objects.get(pk=instance.pk)
+    try:
+        previous = Driver.objects.get(pk=instance.pk)
+    except Driver.DoesNotExist:
+        return
+
     if previous.is_active and not instance.is_active:
-        # Снимаем связь с машиной, где он был активным
         Vehicle.objects.filter(driver=instance).update(driver=None)
