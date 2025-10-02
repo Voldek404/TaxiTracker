@@ -1,10 +1,9 @@
-from django.db import transaction
-from faker import Faker
-import logging
 import random
+from faker import Faker
+from django.core.management.base import BaseCommand
+from django.db import transaction
+from vehicles.models import Vehicle, Driver, VehicleDriver, Brand
 
-from TaxiTracker.vehicles.models import VehicleDriver
-from .models import Vehicle, Driver
 
 _ALLOWED_LETTERS = list("АВЕКМНОРСТУХ")
 _REGION_CODES = [
@@ -13,14 +12,13 @@ _REGION_CODES = [
     "52", "152", "66", "96", "196"
 ]
 
-class CarGenerator:
-    def __init__(self, enterprise_id: int, number_of_cars: int, number_of_drivers: int):
-        self.enterprise_id = enterprise_id
-        self.number_of_cars = number_of_cars
-        self.number_of_drivers = number_of_drivers
-        self.fake_ru = Faker('ru_RU')
-        self.vehicles = []
-        self.drivers = []
+
+class Command(BaseCommand):
+    help = "Генерация заданного количества авто с водителями для конкретного автопарка"
+
+    def add_arguments(self, parser):
+        parser.add_argument('enterprise_id', type=int, help="ID автопарка")
+        parser.add_argument('number_of_cars', type=int, help="Количество машин для генерации")
 
     def generate_plate(self) -> str:
         l1 = random.choice(_ALLOWED_LETTERS)
@@ -30,66 +28,63 @@ class CarGenerator:
         region = random.choice(_REGION_CODES)
         return f"{l1}{digits}{l2}{l3}{region}"
 
-    def generate_vehicles(self):
-        for _ in range(self.number_of_cars):
+    def generate_vehicles(self, enterprise_id, number_of_cars, fake_ru):
+        vehicles = []
+        for _ in range(number_of_cars):
             vehicle = {
-                "prod_date": self.fake_ru.date_of_birth(),
-                "odometer": self.fake_ru.random_int(30000, 200000),
-                "price": self.fake_ru.random_int(30000, 200000),
-                "color": self.fake_ru.color_name(),
+                "prod_date": fake_ru.date_of_birth(),
+                "odometer": fake_ru.random_int(30000, 200000),
+                "price": fake_ru.random_int(30000, 200000),
+                "color": fake_ru.color_name(),
                 "plate_number": self.generate_plate(),
-                "enterprise": self.enterprise_id,
+                "enterprise_id": enterprise_id,
+                "brand": random.choice(Brand.objects.all()),
             }
-            self.vehicles.append(vehicle)
-        return self.vehicles
+            vehicles.append(vehicle)
+        return vehicles
 
-    def generate_drivers(self):
-        for i in range(self.number_of_drivers):
+    def generate_drivers(self, enterprise_id, number_of_drivers, fake_ru):
+        drivers = []
+        for i in range(number_of_drivers):
             is_active = ((i + 1) % 10 == 0)
             driver = {
-                "full_name": self.fake_ru.name(),
-                "salary": self.fake_ru.random_int(10000, 200000),
+                "full_name": fake_ru.name(),
+                "salary": fake_ru.random_int(10000, 200000),
                 "is_active": is_active,
-                "enterprise": self.enterprise_id,
+                "enterprise_id": enterprise_id,
             }
-            self.drivers.append(driver)
-        return self.drivers
+            drivers.append(driver)
+        return drivers
 
-    def db_filler(self):
-        drivers_created = []
-        vehicles_created = []
-        for obj in self.vehicles:
-            vehicle = Vehicle.objects.create(**obj)
-            vehicles_created.append(vehicle)
-        for obj in self.drivers:
-            driver = Driver.objects.create(**obj)
-            drivers_created.append(driver)
-        for vehicle, driver in zip(vehicles_created, drivers_created):
-            VehicleDriver.objects.create(
-                vehicle=vehicle,
-                driver=driver,
-                is_active=True
-            )
+    @transaction.atomic
+    def handle(self, *args, **options):
+        import time
+        enterprise_id = options['enterprise_id']
+        number_of_cars = options['number_of_cars']
+        number_of_drivers = number_of_cars
 
+        fake_ru = Faker('ru_RU')
 
-if __name__ == "__main__":
-    enterprise_id = int(input("Введите ID автопарка: "))
-    number_of_cars = int(input("Введите количество машин: "))
-    number_of_drivers = number_of_cars
+        start = time.time()
+        vehicles_data = self.generate_vehicles(enterprise_id, number_of_cars, fake_ru)
+        drivers_data = self.generate_drivers(enterprise_id, number_of_drivers, fake_ru)
+        print("Generation took", time.time() - start)
 
-    generator = CarGenerator(enterprise_id, number_of_cars, number_of_drivers)
-    vehicles = generator.generate_vehicles()
-    drivers = generator.generate_drivers()
+        start = time.time()
+        vehicles_created = [Vehicle.objects.create(**v) for v in vehicles_data]
+        print("Vehicles insert took", time.time() - start)
 
-    with transaction.atomic():
-        generator.db_filler()
+        start = time.time()
+        drivers_created = [Driver.objects.create(**d) for d in drivers_data]
+        print("Drivers insert took", time.time() - start)
 
-    print("\nСгенерированные машины:")
-    for v in vehicles:
-        print(v)
-
-    print("\nСгенерированные водители:")
-    for d in drivers:
-        print(d)
+        start = time.time()
+        for i, (vehicle, driver) in enumerate(zip(vehicles_created, drivers_created)):
+            is_active = ((i + 1) % 10 == 0)
+            VehicleDriver.objects.create(vehicle=vehicle, driver=driver, is_active=is_active)
+        print("VehicleDriver generation took", time.time() - start)
 
 
+        self.stdout.write(self.style.SUCCESS(
+            f"Создано {len(vehicles_created)} машин и {len(drivers_created)} водителей для автопарка {enterprise_id}"
+        ))

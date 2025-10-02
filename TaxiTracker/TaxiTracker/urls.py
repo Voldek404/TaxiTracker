@@ -24,11 +24,11 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/v1/brands/', BrandsApiView.as_view()),
+    path('api/v1/brands/<int:page>/', BrandsApiView.as_view()),
     path('api/v1/vehicles/', VehiclesApiView.as_view()),
-    path('api/v1/drivers/', DriversApiView.as_view()),
-    path('api/v1/enterprises/', EnterprisesApiView.as_view()),
-    path('api/v1/managers/', ManagersApiView.as_view()),
+    path('api/v1/drivers/<int:page>/', DriversApiView.as_view()),
+    path('api/v1/enterprises/<int:page>/', EnterprisesApiView.as_view()),
+    path('api/v1/managers/<int:page>/', ManagersApiView.as_view()),
     path('api/v1/drivers/<int:pk>/', DriversDetailApiView.as_view(), name='driver_detail'),
     path('api/v1/enterprises/<int:pk>/', EnterprisesDetailApiView.as_view(), name='enterprise_detail'),
     path('api/v1/vehicles/<int:pk>/', VehiclesDetailApiView.as_view(), name='vehicle_detail'),

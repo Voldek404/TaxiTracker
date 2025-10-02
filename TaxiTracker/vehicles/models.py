@@ -60,11 +60,10 @@ class VehicleDriver(models.Model):
             VehicleDriver.objects.filter(driver=self.driver, is_active=True).exclude(vehicle=self.vehicle).update(
                 is_active=False)
 
-            self.vehicle.driver = self.driver
-            self.vehicle.save()
-
-            self.driver.is_active = True
-            self.driver.save()
+            if self.vehicle.driver_id != self.driver.id:
+                Vehicle.objects.filter(id=self.vehicle.id).update(driver=self.driver)
+            if not self.driver.is_active:
+                Driver.objects.filter(id=self.driver.id).update(is_active=True)
 
         super().save(*args, **kwargs)
 
