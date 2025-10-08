@@ -15,6 +15,7 @@ class VehiclesSerializer(serializers.ModelSerializer):
         fields = ['id', 'plate_number', 'prod_date', 'odometer', 'price', 'color', 'brand']
 
 
+
 class DriversSerializer(serializers.ModelSerializer):
     vehicles = serializers.SerializerMethodField()
     active_vehicle = serializers.SerializerMethodField()

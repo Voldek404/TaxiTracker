@@ -28,14 +28,14 @@ class Command(BaseCommand):
         region = random.choice(_REGION_CODES)
         return f"{l1}{digits}{l2}{l3}{region}"
 
-    def generate_vehicles(self, enterprise_id, number_of_cars, fake_ru):
+    def generate_vehicles(self, enterprise_id, number_of_cars, fake_ru, fake_en):
         vehicles = []
         for _ in range(number_of_cars):
             vehicle = {
                 "prod_date": fake_ru.date_of_birth(),
                 "odometer": fake_ru.random_int(30000, 200000),
                 "price": fake_ru.random_int(30000, 200000),
-                "color": fake_ru.color_name(),
+                "color": random.choice([fake_ru.color_name(),fake_en.color_name()]),
                 "plate_number": self.generate_plate(),
                 "enterprise_id": enterprise_id,
                 "brand": random.choice(Brand.objects.all()),
@@ -64,9 +64,10 @@ class Command(BaseCommand):
         number_of_drivers = number_of_cars
 
         fake_ru = Faker('ru_RU')
+        fake_en = Faker('en_US')
 
         start = time.time()
-        vehicles_data = self.generate_vehicles(enterprise_id, number_of_cars, fake_ru)
+        vehicles_data = self.generate_vehicles(enterprise_id, number_of_cars, fake_ru, fake_en)
         drivers_data = self.generate_drivers(enterprise_id, number_of_drivers, fake_ru)
         print("Generation took", time.time() - start)
 

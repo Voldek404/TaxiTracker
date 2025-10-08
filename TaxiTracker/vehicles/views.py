@@ -1,11 +1,11 @@
-from rest_framework import generics
+from rest_framework import generics, filters
 from vehicles.models import Vehicle, Brand, Driver, Enterprise, VehicleDriver, Manager
 from vehicles.serializers import VehiclesSerializer, BrandsSerializer, DriversSerializer, EnterprisesSerializer, \
     ManagersSerializer
 from rest_framework.response import Response
 from django.views.decorators.csrf import csrf_protect
 from django.utils.decorators import method_decorator
-from rest_framework.authentication import BasicAuthentication
+from rest_framework.authentication import SessionAuthentication
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.permissions import DjangoModelPermissions,DjangoObjectPermissions, IsAuthenticated
 from rest_framework.exceptions import PermissionDenied, APIException
@@ -13,6 +13,62 @@ from django.http import HttpResponse, HttpResponseNotFound, HttpResponseForbidde
 from django.shortcuts import get_object_or_404
 from django.shortcuts import render
 from rest_framework import status
+from rest_framework.pagination import PageNumberPagination
+from rest_framework_extensions.mixins import PaginateByMaxMixin
+from rest_framework.renderers import TemplateHTMLRenderer, JSONRenderer
+from urllib.parse import urlencode
+
+
+class MyPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'size'
+    max_page_size = 100
+    page_query_param = 'page'
+
+    available_sizes = [10, 20, 50]
+
+    def get_paginated_response(self, data):
+        base_url = self.request.build_absolute_uri().split('?')[0]
+        current_size = int(self.request.GET.get(self.page_size_query_param, self.page_size))
+
+        return Response({
+            'size_buttons': [
+                {
+                    'size': size,
+                    'url': self.build_size_url(size),
+                    'active': size == current_size,
+                    'label': str(size)
+                } for size in self.available_sizes
+            ],
+
+            'results': data
+        })
+
+    def build_size_url(self, size):
+        """Строит URL с измененным размером страницы"""
+        params = self.request.GET.copy()
+        params[self.page_size_query_param] = size
+        params[self.page_query_param] = 1  # Сбрасываем на первую страницу
+        return f"{self.request.build_absolute_uri().split('?')[0]}?{urlencode(params)}"
+
+    def build_page_url(self, page_num):
+        """Строит URL для конкретной страницы"""
+        params = self.request.GET.copy()
+        params[self.page_query_param] = page_num
+        return f"{self.request.build_absolute_uri().split('?')[0]}?{urlencode(params)}"
+
+    def get_page_range(self):
+        """Диапазон отображаемых страниц"""
+        current = self.page.number
+        total = self.page.paginator.num_pages
+
+        # Показываем до 5 страниц вокруг текущей
+        start = max(1, current - 2)
+        end = min(total, current + 2)
+
+        return range(start, end + 1)
+
+
 
 
 
@@ -23,10 +79,16 @@ class ConflictError(APIException):
 
 
 class VehiclesApiView(generics.ListCreateAPIView):
+
     queryset = Vehicle.objects.all()
     serializer_class = VehiclesSerializer
     permission_classes = [DjangoModelPermissions]
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
+    pagination_class = MyPagination
+
+
+    filter_backends = (filters.OrderingFilter,)
+    ordering_fields = ['color', 'price', 'odometer']
 
     def handle_exception(self, exc):
         response = super().handle_exception(exc)
@@ -79,6 +141,7 @@ class BrandsApiView(generics.ListCreateAPIView):
     serializer_class = BrandsSerializer
     permission_classes = [DjangoModelPermissions]
     authentication_classes = [JWTAuthentication]
+    pagination_class = MyPagination
 
     def get_queryset(self):
         user = self.request.user
@@ -92,6 +155,7 @@ class DriversApiView(generics.ListCreateAPIView):
     serializer_class = DriversSerializer
     permission_classes = [DjangoModelPermissions]
     authentication_classes = [JWTAuthentication]
+    pagination_class = MyPagination
 
     def get_queryset(self):
         user = self.request.user
@@ -105,6 +169,7 @@ class EnterprisesApiView(generics.ListCreateAPIView):
     serializer_class = EnterprisesSerializer
     permission_classes = [DjangoModelPermissions]
     authentication_classes = [JWTAuthentication]
+    pagination_class = MyPagination
 
     def perform_create(self, serializer):
         user = self.request.user
