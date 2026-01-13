@@ -2,7 +2,7 @@ from multiprocessing.context import AuthenticationError
 
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.views import LogoutView
-from django.contrib.auth import login
+from django.contrib.auth import login, logout
 from django.views.generic import FormView, ListView
 from rest_framework import generics, filters
 from vehicles.models import Vehicle, Brand, Driver, Enterprise, VehicleDriver, Manager
