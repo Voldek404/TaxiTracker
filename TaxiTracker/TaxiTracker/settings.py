@@ -37,6 +37,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
+    "django_bootstrap5",
+
     'vehicles',
 
     'rest_framework',
@@ -54,7 +56,7 @@ MIDDLEWARE = [
 ]
 
 CSRF_USE_SESSIONS = False
-CSRF_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = False
 
 ROOT_URLCONF = 'TaxiTracker.urls'
 
@@ -121,6 +123,9 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 
 USE_TZ = True
+
+LOGIN_REDIRECT_URL = '/admin/' # После успешного входа
+LOGOUT_REDIRECT_URL = '/login/' # После выхода
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.2/howto/static-files/

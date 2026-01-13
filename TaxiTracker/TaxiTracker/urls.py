@@ -19,11 +19,14 @@ from django.urls import path
 
 from vehicles.views import (VehiclesApiView, BrandsApiView, VehiclesDetailApiView,
                             DriversApiView, EnterprisesApiView, DriversDetailApiView, EnterprisesDetailApiView,
-                            ManagersApiView, ManagersDetailApiView)
+                            ManagersApiView, ManagersDetailApiView, UserLoginView, UserLogoutView, ManagerDashboardView)
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenVerifyView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('login/', UserLoginView.as_view(), name='login'),
+    path('logout/', UserLogoutView.as_view(), name='logout'),
+    path('dashboard/', ManagerDashboardView.as_view(), name='enterprise_detail'),
     path('api/v1/brands/<int:page>/', BrandsApiView.as_view()),
     path('api/v1/vehicles/', VehiclesApiView.as_view()),
     path('api/v1/drivers/<int:page>/', DriversApiView.as_view()),

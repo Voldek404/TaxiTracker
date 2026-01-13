@@ -1,22 +1,54 @@
+from multiprocessing.context import AuthenticationError
+
+from django.contrib.auth.forms import AuthenticationForm
+from django.contrib.auth.views import LogoutView
+from django.contrib.auth import login
+from django.views.generic import FormView, ListView
 from rest_framework import generics, filters
 from vehicles.models import Vehicle, Brand, Driver, Enterprise, VehicleDriver, Manager
 from vehicles.serializers import VehiclesSerializer, BrandsSerializer, DriversSerializer, EnterprisesSerializer, \
     ManagersSerializer
 from rest_framework.response import Response
-from django.views.decorators.csrf import csrf_protect
 from django.utils.decorators import method_decorator
 from rest_framework.authentication import SessionAuthentication
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.permissions import DjangoModelPermissions,DjangoObjectPermissions, IsAuthenticated
 from rest_framework.exceptions import PermissionDenied, APIException
 from django.http import HttpResponse, HttpResponseNotFound, HttpResponseForbidden, HttpResponseBadRequest
-from django.shortcuts import get_object_or_404
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from rest_framework import status
 from rest_framework.pagination import PageNumberPagination
 from rest_framework_extensions.mixins import PaginateByMaxMixin
 from rest_framework.renderers import TemplateHTMLRenderer, JSONRenderer
 from urllib.parse import urlencode
+
+
+
+class UserLoginView(FormView):
+    template_name = 'authentication/login.html'
+    form_class = AuthenticationForm
+
+    def form_valid(self, form):
+        user = form.get_user()
+        login(self.request, user)
+        return redirect('/dashboard/')
+
+
+class UserLogoutView(LogoutView):
+    next_page = '/login/'
+
+
+class ManagerDashboardView(ListView):
+    template_name = 'authentication/dashboard.html'
+    model = Enterprise
+    context_object_name = 'enterprises'
+
+    def get_queryset(self):
+        user = self.request.user
+        if hasattr(user, 'managers'):
+            return user.managers.enterprises.all()
+        raise PermissionDenied("Вы не менеджер")
+
 
 
 class MyPagination(PageNumberPagination):
@@ -45,20 +77,17 @@ class MyPagination(PageNumberPagination):
         })
 
     def build_size_url(self, size):
-        """Строит URL с измененным размером страницы"""
         params = self.request.GET.copy()
         params[self.page_size_query_param] = size
         params[self.page_query_param] = 1  # Сбрасываем на первую страницу
         return f"{self.request.build_absolute_uri().split('?')[0]}?{urlencode(params)}"
 
     def build_page_url(self, page_num):
-        """Строит URL для конкретной страницы"""
         params = self.request.GET.copy()
         params[self.page_query_param] = page_num
         return f"{self.request.build_absolute_uri().split('?')[0]}?{urlencode(params)}"
 
     def get_page_range(self):
-        """Диапазон отображаемых страниц"""
         current = self.page.number
         total = self.page.paginator.num_pages
 
@@ -67,8 +96,6 @@ class MyPagination(PageNumberPagination):
         end = min(total, current + 2)
 
         return range(start, end + 1)
-
-
 
 
 
@@ -223,3 +250,4 @@ class ManagersDetailApiView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ManagersSerializer
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
+
