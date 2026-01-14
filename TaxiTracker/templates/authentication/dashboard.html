@@ -13,7 +13,7 @@
     <form method="post" action="{% url 'logout' %}" style="display: inline;">
     {% csrf_token %}
     <button type="submit" class="btn btn-danger">
-        Log out
+        Выйти
     </button>
 </form>
 </div>
@@ -23,8 +23,8 @@
         <thead class="table-dark">
             <tr>
                 <th>ID</th>
-                <th>Name</th>
-                <th>City</th>
+                <th>Название</th>
+                <th>Город</th>
             </tr>
         </thead>
         <tbody>
@@ -36,7 +36,9 @@
             </tr>
             {% empty %}
             <tr>
-                <td colspan="3">No enterprises found</td>
+                <td colspan="3"class="text-center">
+                    У вас нет прав на просмотр
+                </td>
             </tr>
             {% endfor %}
         </tbody>

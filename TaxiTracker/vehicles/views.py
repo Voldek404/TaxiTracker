@@ -47,7 +47,7 @@ class ManagerDashboardView(ListView):
         user = self.request.user
         if hasattr(user, 'managers'):
             return user.managers.enterprises.all()
-        raise PermissionDenied("Вы не менеджер")
+
 
 
 

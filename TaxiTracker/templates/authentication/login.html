@@ -11,16 +11,21 @@
   <body class="text-center">
     <form method="post" action="{% url 'login' %}">
        {% csrf_token %}
-      <h1 class="h3 mb-3 font-weight-normal">Taxi CRM Login Form</h1>
-      <label for="username" class="form-label">Username</label>
-      <input type="text" class="form-control" name="username" placeholder="Enter username">
-      <input name="password" class="form-control" type="password" placeholder="Password" required>
+      <h1 class="h3 mb-3 font-weight-normal">Авторизация в системе Таксопарка</h1>
+      <label for="username" class="form-label">Пользователь</label>
+      <input type="text" class="form-control" name="username" placeholder="Введите имя пользователя">
+      <input name="password" class="form-control" type="password" placeholder="Пароль" required>
+      {% if form.errors %}
+      <div class="invalid-feedback d-block">
+        Неверный логин или пароль
+      </div>
+      {% endif %}
       <div class="checkbox mb-3">
         <label>
-          <input value="remember-me" type="checkbox"> Remember me
+          <input value="remember-me" type="checkbox"> Запомнить меня
         </label>
       </div>
-      <button class="btn btn-lg btn-primary btn-block" type="submit">Sign in</button>
+      <button class="btn btn-lg btn-primary btn-block" type="submit">Войти</button>
     </form>
   </body>
 </html>
