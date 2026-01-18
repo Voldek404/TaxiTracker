@@ -19,7 +19,7 @@ from django.urls import path
 
 from vehicles.views import (VehiclesApiView, BrandsApiView, VehiclesDetailApiView,
                             DriversApiView, EnterprisesApiView, DriversDetailApiView, EnterprisesDetailApiView,
-                            ManagersApiView, ManagersDetailApiView, UserLoginView, UserLogoutView, ManagerDashboardView)
+                            ManagersApiView, ManagersDetailApiView, UserLoginView, UserLogoutView, ManagerDashboardView, ManagerVehicleDashboardView,  ManagerVehicleCreateView, VehiclesBulkDeleteView, ManagerVehicleUpdateView)
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenVerifyView
 
 urlpatterns = [
@@ -27,6 +27,11 @@ urlpatterns = [
     path('login/', UserLoginView.as_view(), name='login'),
     path('logout/', UserLogoutView.as_view(), name='logout'),
     path('dashboard/', ManagerDashboardView.as_view(), name='enterprise_detail'),
+    path('vehicles_dashboard/<int:pk>/', ManagerVehicleDashboardView.as_view(), name='vehicles'),
+    path('vehicle_details/<int:pk>/', ManagerVehicleUpdateView.as_view(), name='ui_vehicle_details'),
+    path('vehicle_create/', ManagerVehicleCreateView.as_view(), name='vehicle_create'),
+    path('vehicles_bulk_delete/', VehiclesBulkDeleteView.as_view(), name='vehicles_bulk_delete'),
+
     path('api/v1/brands/<int:page>/', BrandsApiView.as_view()),
     path('api/v1/vehicles/', VehiclesApiView.as_view()),
     path('api/v1/drivers/<int:page>/', DriversApiView.as_view()),
