@@ -203,16 +203,24 @@ class ManagerVehicleUpdateView(UpdateView):
 
 
 class VehiclesBulkDeleteView(DeleteView):
+
     def post(self, request, *args, **kwargs):
         vehicle_ids = request.POST.getlist("vehicle_ids")
+        vehicles = Vehicle.objects.filter(id__in=vehicle_ids)
+        enterprise_id = request.user.managers.enterprises.first().id
         if vehicle_ids:
-            vehicles = Vehicle.objects.filter(id__in=vehicle_ids)
+            if vehicles.filter(driver__isnull=False).exists():
+                messages.warning(
+                    request,
+                    "Нельзя удалить автомобили, к которым назначен водитель"
+                )
+                return redirect(request.META.get("HTTP_REFERER", "/"))
+            deleted_count = vehicles.count()
             vehicles.delete()
-            messages.success(request, f"{vehicles.count()} автомобилей удалено.")
+            messages.success(request, f"{deleted_count} автомобилей удалено.")
         else:
             messages.warning(request, "Выберите хотя бы один автомобиль.")
-        enterprise_id = request.user.managers.enterprises.first().id
-        return redirect("vehicles", pk=enterprise_id)
+        return redirect(request.META.get("HTTP_REFERER", "/"))
 
 
 class ConflictError(APIException):

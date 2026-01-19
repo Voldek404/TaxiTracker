@@ -18,7 +18,14 @@
     <h2>Список автомобилей</h2>
     <a href="{% url 'vehicle_create' %}" class="btn btn-success">Добавить автомобиль</a>
 </div>
-
+{% if messages %}
+  {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+      {{ message }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  {% endfor %}
+{% endif %}
 <form method="post" action="{% url 'vehicles_bulk_delete' %}">
     {% csrf_token %}
     <div class="container mt-4">
@@ -27,7 +34,6 @@
             <thead class="table-dark">
                 <tr>
                     <th><input type="checkbox" id="select_all"></th>
-                    <th>ID</th>
                     <th>Дата изготовления</th>
                     <th>Пробег, км</th>
                     <th>Цена, руб</th>
@@ -39,10 +45,9 @@
                 </tr>
             </thead>
             <tbody>
-                {% for vehicle in page_obj %}  <!-- ИЗМЕНИЛ: vehicles → page_obj -->
+                {% for vehicle in page_obj %}
                 <tr style="cursor: pointer;" onclick="if(event.target.type !== 'checkbox') window.location='{% url 'ui_vehicle_details' vehicle.id %}'">
                     <td><input type="checkbox" name="vehicle_ids" value="{{ vehicle.id }}"></td>
-                    <td>{{ vehicle.id }}</td>
                     <td>{{ vehicle.prod_date }}</td>
                     <td>{{ vehicle.odometer }}</td>
                     <td>{{ vehicle.price }}</td>
@@ -59,7 +64,7 @@
                 {% endfor %}
             </tbody>
         </table>
-        
+
         {% if page_obj.has_other_pages %}
         <nav aria-label="Page navigation">
             <ul class="pagination justify-content-center">

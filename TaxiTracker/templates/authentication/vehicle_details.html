@@ -17,25 +17,27 @@
 </head>
 <body>
 <div class="container mt-4">
+    {% if messages %}
+    {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    {% endfor %}
+{% endif %}
     <h2>Детали автомобиля</h2>
 
     <form method="post" id="vehicleForm">
         {% csrf_token %}
-
-        <!-- Отладочная информация (можно убрать после отладки) -->
+        
         <div class="alert alert-info">
             <small>
-                Vehicle ID: {{ ui_vehicle_details.id }}<br>
                 Current Enterprise: {{ ui_vehicle_details.enterprise.name }} (ID: {{ ui_vehicle_details.enterprise.id }})<br>
                 Current Driver: {% if ui_vehicle_details.driver %}{{ ui_vehicle_details.driver.name }} (ID: {{ ui_vehicle_details.driver.id }}){% else %}Не назначен{% endif %}
             </small>
         </div>
 
         <table class="table table-bordered">
-            <tr>
-                <th>ID</th>
-                <td>{{ ui_vehicle_details.id }}</td>
-            </tr>
             <tr>
                 <th>Дата выпуска</th>
                 <td>
