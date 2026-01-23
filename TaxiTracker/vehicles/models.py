@@ -1,16 +1,40 @@
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
-from django.contrib import admin
-from django.db.models.fields import IntegerField
 from django.contrib.auth.models import User
+import zoneinfo
+import time
+from django.utils import timezone
+
+ENTERPRISE_TIMEZONES = [
+    ("UTC", "UTC±00:00 — Coordinated Universal Time"),
+    ("Europe/London", "UTC±00:00 — London"),
+    ("Europe/Paris",  "UTC+01:00 — Paris"),
+    ("Europe/Berlin", "UTC+01:00 — Berlin"),
+    ("Europe/Moscow", "UTC+03:00 — Moscow"),
+    ("Asia/Dubai",    "UTC+04:00 — Dubai"),
+    ("Asia/Almaty",   "UTC+06:00 — Almaty"),
+    ("Asia/Tashkent", "UTC+05:00 — Tashkent"),
+    ("Asia/Shanghai", "UTC+08:00 — Shanghai"),
+    ("Asia/Tokyo",    "UTC+09:00 — Tokyo"),
+    ("America/New_York",    "UTC−05:00 — New York"),
+    ("America/Chicago",     "UTC−06:00 — Chicago"),
+    ("America/Denver",      "UTC−07:00 — Denver"),
+    ("America/Los_Angeles", "UTC−08:00 — Los Angeles"),
+]
 
 
 class Enterprise(models.Model):
     name = models.CharField(max_length=50)
     city = models.CharField(max_length=50)
+    timezone = models.CharField(
+        max_length=50,
+        default="UTC",
+        null=True,
+        choices=ENTERPRISE_TIMEZONES,
+    )
 
     def __str__(self):
-        return f"id = {self.id} Наименование предприятия - {self.name}. Расположение - {self.city}"
+        return f"id = {self.id} Наименование предприятия - {self.name}. Расположение - {self.city}. Часовой пояс - {self.timezone}"
 
 
 class Driver(models.Model):
@@ -87,6 +111,7 @@ class Vehicle(models.Model):
     price = models.IntegerField(validators=[MaxValueValidator(10000000)])
     color = models.CharField(max_length=100)
     plate_number = models.CharField(max_length=9, blank=True)
+    car_purchase_time = models.DateTimeField(null=True, blank=True)
 
     brand = models.ForeignKey(
         Brand, on_delete=models.CASCADE, null=True, related_name="vehicles"
@@ -104,8 +129,17 @@ class Vehicle(models.Model):
 
     def __str__(self):
         return (
-            f"id = {self.id} Авто. Госномер {self.plate_number}. Модель - {self.brand}"
+            f"id = {self.id} Авто. Госномер {self.plate_number}. Модель - {self.brand}. Дата продажи - {self.car_purchase_time}"
         )
+
+    @property
+    def car_purchase_time_utc(self):
+        if not self.car_purchase_time:
+            return None
+
+        if timezone.is_naive(self.car_purchase_time):
+            return timezone.make_aware(self.car_purchase_time, timezone.utc)
+        return self.car_purchase_time
 
     def save(self, *args, **kwargs):
         old_driver = None

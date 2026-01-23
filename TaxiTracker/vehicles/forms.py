@@ -46,6 +46,7 @@ class VehicleForm(forms.ModelForm):
             "plate_number",
             "brand",
             "driver",
+            "car_purchase_time",
         ]
         widgets = {
             "prod_date": forms.DateInput(
@@ -58,6 +59,7 @@ class VehicleForm(forms.ModelForm):
             "brand": forms.TextInput(attrs={"class": "form-control"}),
             "enterprise": forms.Select(attrs={"class": "form-control"}),
             "driver": forms.Select(attrs={"class": "form-control"}),
+            "car_purchase_time": forms.Select(attrs={"class": "form-control"}),
         }
 
     def __init__(self, *args, **kwargs):

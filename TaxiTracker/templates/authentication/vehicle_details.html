@@ -1,5 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
+{% load tz %}
+{% get_current_timezone as TIME_ZONE %}
 <head>
     <meta charset="UTF-8">
     <title>Vehicle Details</title>
@@ -29,7 +31,7 @@
 
     <form method="post" id="vehicleForm">
         {% csrf_token %}
-        
+
         <div class="alert alert-info">
             <small>
                 Current Enterprise: {{ ui_vehicle_details.enterprise.name }} (ID: {{ ui_vehicle_details.enterprise.id }})<br>
@@ -93,6 +95,16 @@
                     <input type="hidden" name="brand" value="{{ ui_vehicle_details.brand.id }}">
                 </td>
             </tr>
+        <tr>
+            <th>Дата покупки</th>
+            <td>
+                {% if ui_vehicle_details.car_purchase_time_utc %}
+                    {{ ui_vehicle_details.car_purchase_time_utc|localtime|date:"d.m.Y H:i" }}
+                {% else %}
+                    <span class="text-muted fst-italic">Дата покупки не указана</span>
+                {% endif %}
+            </td>
+        </tr>
             <tr>
                 <th>Предприятие</th>
                 <td>
@@ -182,6 +194,18 @@
 
         editBtn.classList.add('d-none');
         saveBtn.classList.remove('d-none');
+    });
+
+        const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+    // Сохраняем в сессии через AJAX
+    fetch("/set-timezone/", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": "{{ csrf_token }}"
+        },
+        body: JSON.stringify({ timezone: userTimezone })
     });
 </script>
 </body>

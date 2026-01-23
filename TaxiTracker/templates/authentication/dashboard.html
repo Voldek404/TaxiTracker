@@ -25,21 +25,100 @@
                 <th>ID</th>
                 <th>Название</th>
                 <th>Город</th>
+                <th>Часовой пояс</th>
             </tr>
         </thead>
-        <tbody>
-            {% for enterprise in enterprises %}
-            <tr onclick="window.location='{% url 'vehicles' enterprise.id %}'"
-            style="cursor: pointer;">
-                <td>{{ enterprise.id }}</td>
-                <td>{{ enterprise.name }}</td>
-                <td>{{ enterprise.city }}</td>
-            </tr>
-            {% empty %}
-            {% endfor %}
-        </tbody>
+            <tbody>
+                {% for enterprise in enterprises %}
+                <tr onclick="window.location='{% url 'vehicles' enterprise.id %}'"
+                    style="cursor: pointer;">
+
+                    <td>{{ enterprise.id }}</td>
+                    <td>{{ enterprise.name }}</td>
+                    <td>{{ enterprise.city }}</td>
+                    <td>
+                        <div class="mb-2">
+                            {{ enterprise.get_timezone_display }}
+                        </div>
+                            <label class="form-label small fw-semibold mb-1">
+                                Изменить часовой пояс
+                            </label>
+                            <select class="form-control form-control-sm"
+                                data-enterprise-id="{{ enterprise.id }}"
+                                onchange="updateTimezone(this)"
+                                onclick="event.stopPropagation();">
+                            {% for value, label in timezone_choices %}
+                                <option value="{{ value }}"
+                                    {% if value == enterprise.timezone %}selected{% endif %}>
+                                    {{ label }}
+                                </option>
+                            {% endfor %}
+                            </select>
+                            <div class="small mt-1 text-success d-none" id="tz-msg-{{ enterprise.id }}">
+                                 Часовой пояс сохранён!
+                            </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
     </table>
 </div>
 
 </body>
+<script>
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== "") {
+        const cookies = document.cookie.split(';');
+        for (let cookie of cookies) {
+            cookie = cookie.trim();
+            if (cookie.startsWith(name + '=')) {
+                cookieValue = decodeURIComponent(cookie.slice(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+function updateTimezone(select) {
+    const enterpriseId = select.dataset.enterpriseId;
+    const timezone = select.value;
+
+    fetch(`/enterprise/${enterpriseId}/timezone/`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": getCookie("csrftoken")
+        },
+        body: JSON.stringify({ timezone: timezone })
+    })
+    .then(response => response.json())
+    .then(data => {
+        const msgDiv = document.getElementById(`tz-msg-${enterpriseId}`);
+        if (data.status === "ok") {
+            msgDiv.textContent = "Часовой пояс сохранён!";
+            msgDiv.classList.remove("d-none");
+            msgDiv.classList.remove("text-danger");
+            msgDiv.classList.add("text-success");
+
+            // скрыть через 2 секунды
+            setTimeout(() => msgDiv.classList.add("d-none"), 2000);
+        } else {
+            msgDiv.textContent = "Ошибка при сохранении";
+            msgDiv.classList.remove("d-none");
+            msgDiv.classList.remove("text-success");
+            msgDiv.classList.add("text-danger");
+        }
+    })
+    .catch(err => {
+        const msgDiv = document.getElementById(`tz-msg-${enterpriseId}`);
+        msgDiv.textContent = "Ошибка сети";
+        msgDiv.classList.remove("d-none");
+        msgDiv.classList.remove("text-success");
+        msgDiv.classList.add("text-danger");
+    });
+}
+</script>
+
 </html>

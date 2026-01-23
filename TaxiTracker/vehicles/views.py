@@ -10,6 +10,7 @@ from django.views.generic import (
     UpdateView,
     DeleteView,
     FormView,
+    View
 )
 from django.urls import reverse_lazy
 from rest_framework import generics, filters
@@ -37,6 +38,9 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework_extensions.mixins import PaginateByMaxMixin
 from rest_framework.renderers import TemplateHTMLRenderer, JSONRenderer
 from urllib.parse import urlencode
+from django.http import JsonResponse
+import json
+from django.shortcuts import get_object_or_404
 
 class MyPagination(PageNumberPagination):
     page_size = 10
@@ -81,12 +85,11 @@ class MyPagination(PageNumberPagination):
     def get_page_range(self):
         current = self.page.number
         total = self.page.paginator.num_pages
-
-        # Показываем до 5 страниц вокруг текущей
         start = max(1, current - 2)
         end = min(total, current + 2)
 
         return range(start, end + 1)
+
 
 
 class UserLoginView(FormView):
@@ -112,6 +115,33 @@ class ManagerDashboardView(ListView):
         user = self.request.user
         if hasattr(user, "managers"):
             return user.managers.enterprises.all()
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["timezone_choices"] = (
+            Enterprise._meta.get_field("timezone").choices
+        )
+        return context
+
+
+class EnterpriseTimezoneUpdateView(View):
+
+    def post(self, request, pk):
+        data = json.loads(request.body)
+        enterprise = get_object_or_404(Enterprise, pk=pk)
+        enterprise.timezone = data["timezone"]
+        enterprise.save()
+        return JsonResponse({"status": "ok"})
+
+
+class SetTimezoneView(View):
+    def post(self, request):
+        data = json.loads(request.body)
+        tzname = data.get("timezone")
+        if tzname:
+            request.session['django_timezone'] = tzname
+            return JsonResponse({"status": "ok"})
+        return JsonResponse({"status": "error"}, status=400)
 
 
 class ManagerVehicleDashboardView(ListView):

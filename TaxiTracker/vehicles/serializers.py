@@ -1,5 +1,7 @@
 from rest_framework import serializers
+from zoneinfo import ZoneInfo
 from vehicles.models import Vehicle, Brand, Driver, Enterprise, VehicleDriver, Manager
+from django.utils import timezone
 
 
 class BrandsSerializer(serializers.ModelSerializer):
@@ -10,9 +12,23 @@ class BrandsSerializer(serializers.ModelSerializer):
 
 
 class VehiclesSerializer(serializers.ModelSerializer):
+    car_purchase_time = serializers.SerializerMethodField()
+
     class Meta:
         model = Vehicle
-        fields = ['id', 'plate_number', 'prod_date', 'odometer', 'price', 'color', 'brand']
+        fields = ['id', 'plate_number', 'prod_date', 'odometer', 'price', 'color', 'brand', "car_purchase_time"]
+
+    def get_car_purchase_time(self, obj):
+        if not obj.car_purchase_time:
+            return None
+
+        utc_time = obj.car_purchase_time_utc
+        if timezone.is_naive(utc_time):
+            utc_time = timezone.make_aware(utc_time, timezone.utc)
+
+        tz_name = obj.enterprise.timezone or "UTC"
+        local_time = utc_time.astimezone(ZoneInfo(tz_name))
+        return local_time.isoformat()
 
 
 
@@ -63,5 +79,30 @@ class ManagersSerializer(serializers.ModelSerializer):
     def get_vehicles(self, obj):
         vehicles = Vehicle.objects.filter(
             enterprise__in=obj.enterprises.all()
-        ).values_list('id', flat=True)
-        return list(vehicles)
+        ).select_related('enterprise')
+
+        vehicles_list = []
+
+        for v in vehicles:
+            car_purchase_time = None
+            if v.car_purchase_time:
+                # UTC время
+                utc_time = v.car_purchase_time
+                if timezone.is_naive(utc_time):
+                    utc_time = timezone.make_aware(utc_time, timezone.utc)
+
+                # Конвертация в таймзону предприятия
+                tz_name = v.enterprise.timezone or "UTC"
+                local_time = utc_time.astimezone(ZoneInfo(tz_name))
+                car_purchase_time = local_time.isoformat()
+
+            vehicles_list.append({
+                "id": v.id,
+                "plate_number": v.plate_number,
+                "brand": v.brand.id if v.brand else None,
+                "car_purchase_time": car_purchase_time,
+                "enterprise": v.enterprise.id if v.enterprise else None,
+            })
+
+        return vehicles_list
+

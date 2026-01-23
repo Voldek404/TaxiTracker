@@ -19,7 +19,7 @@ from django.urls import path
 
 from vehicles.views import (VehiclesApiView, BrandsApiView, VehiclesDetailApiView,
                             DriversApiView, EnterprisesApiView, DriversDetailApiView, EnterprisesDetailApiView,
-                            ManagersApiView, ManagersDetailApiView, UserLoginView, UserLogoutView, ManagerDashboardView, ManagerVehicleDashboardView,  ManagerVehicleCreateView, VehiclesBulkDeleteView, ManagerVehicleUpdateView)
+                            ManagersApiView, ManagersDetailApiView, UserLoginView, UserLogoutView, ManagerDashboardView, ManagerVehicleDashboardView,  ManagerVehicleCreateView, VehiclesBulkDeleteView, ManagerVehicleUpdateView, EnterpriseTimezoneUpdateView, SetTimezoneView)
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenVerifyView
 
 urlpatterns = [
@@ -31,6 +31,8 @@ urlpatterns = [
     path('vehicle_details/<int:pk>/', ManagerVehicleUpdateView.as_view(), name='ui_vehicle_details'),
     path('vehicle_create/', ManagerVehicleCreateView.as_view(), name='vehicle_create'),
     path('vehicles_bulk_delete/', VehiclesBulkDeleteView.as_view(), name='vehicles_bulk_delete'),
+    path("enterprise/<int:pk>/timezone/",EnterpriseTimezoneUpdateView.as_view(),name="update_enterprise_timezone"),
+    path('set-timezone/', SetTimezoneView.as_view(), name='set_timezone'),
 
     path('api/v1/brands/<int:page>/', BrandsApiView.as_view()),
     path('api/v1/vehicles/', VehiclesApiView.as_view()),
