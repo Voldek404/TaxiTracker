@@ -1,6 +1,7 @@
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.contrib.auth.models import User
+from django.contrib.gis.db import models
 import zoneinfo
 import time
 from django.utils import timezone
@@ -176,6 +177,23 @@ class Vehicle(models.Model):
             )
         else:
             VehicleDriver.objects.filter(vehicle=self).update(is_active=False)
+
+
+class VehicleTrackPoint(models.Model):
+    vehicle = models.ForeignKey(
+        Vehicle,
+        on_delete=models.CASCADE,
+    )
+    point = models.PointField(geography=True, srid=4326)
+    timestamp = models.DateTimeField(db_index=True)
+
+    class Meta:
+        indexes = (
+            models.Index(fields=["vehicle", "timestamp"]),
+        )
+
+    def get_point(self, obj):
+        return {"lat": obj.point.y, "lng": obj.point.x}
 
 
 class Manager(models.Model):

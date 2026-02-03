@@ -14,15 +14,19 @@ from django.views.generic import (
 )
 from django.urls import reverse_lazy
 from rest_framework import generics, filters
-from vehicles.models import Vehicle, Brand, Driver, Enterprise, VehicleDriver, Manager
+from vehicles.models import Vehicle, Brand, Driver, Enterprise, VehicleDriver, Manager, VehicleTrackPoint
 from vehicles.serializers import (
     VehiclesSerializer,
     BrandsSerializer,
     DriversSerializer,
     EnterprisesSerializer,
     ManagersSerializer,
+    VehicleTrackPointSerializer,
+    VehicleTrackPointGeoSerializer,
 )
 from vehicles.forms import VehicleForm
+from django.utils.dateparse import parse_datetime
+from django.utils import timezone
 from rest_framework.response import Response
 from rest_framework.authentication import SessionAuthentication
 from rest_framework_simplejwt.authentication import JWTAuthentication
@@ -41,6 +45,9 @@ from urllib.parse import urlencode
 from django.http import JsonResponse
 import json
 from django.shortcuts import get_object_or_404
+from rest_framework_gis.serializers import GeoFeatureModelSerializer
+from rest_framework.renderers import JSONRenderer
+from django.http import HttpResponse
 
 class MyPagination(PageNumberPagination):
     page_size = 10
@@ -406,3 +413,74 @@ class ManagersDetailApiView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ManagersSerializer
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
+
+
+class VehicleTrackAPIView(generics.ListAPIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+
+        if not hasattr(user, "managers"):
+            raise PermissionDenied("У вас нет прав на просмотр")
+        manager = user.managers
+        qs = VehicleTrackPoint.objects.filter(
+            vehicle__enterprise__in=manager.enterprises.all()
+        )
+        vehicle_id = self.request.query_params.get("vehicle_id")
+        if vehicle_id:
+            qs = qs.filter(vehicle_id=vehicle_id)
+
+        start = self.request.query_params.get("start")
+        if start:
+            start_dt = parse_datetime(start)
+            if start_dt:
+                qs = qs.filter(timestamp__gte=start_dt)
+
+        end = self.request.query_params.get("end")
+        if end:
+            end_dt = parse_datetime(end)
+            if end_dt:
+                qs = qs.filter(timestamp__lte=end_dt)
+
+        return qs.order_by("timestamp")
+
+    def get_serializer_class(self):
+        if self.request.query_params.get("type") == "geojson":
+            return VehicleTrackPointGeoSerializer
+        if self.request.query_params.get("type") == "json":
+            return VehicleTrackPointSerializer
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+
+        if self.request.query_params.get("type") == "geojson":
+            serializer = VehicleTrackPointGeoSerializer(queryset, many=True)
+            data = {
+                "type": "FeatureCollection",
+                "features": serializer.data
+            }
+            return HttpResponse(
+                json.dumps(data, ensure_ascii=False, indent=2),
+                content_type="application/json; charset=utf-8"
+            )
+        else:
+            serializer = VehicleTrackPointSerializer(queryset, many=True)
+            data = {
+                "count": queryset.count(),
+                "next": None,
+                "previous": None,
+                "results": serializer.data
+            }
+
+        return HttpResponse(
+            json.dumps(data, ensure_ascii=False, indent=2),
+            content_type="application/json; charset=utf-8"
+        )
+
+
+
+
+
+

@@ -37,6 +37,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    "django.contrib.gis",
+    "rest_framework_gis",
 
     "django_bootstrap5",
 
@@ -86,7 +88,7 @@ WSGI_APPLICATION = 'TaxiTracker.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
+        "ENGINE": "django.contrib.gis.db.backends.postgis",
         'NAME': 'diploma',
         'USER': 'admin',
         'PASSWORD': '051587',
@@ -152,6 +154,12 @@ REST_FRAMEWORK = {
     "EXCEPTION_HANDLER": "TaxiTracker.exceptions.custom_exception_handler",
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 100,
+    'UNICODE_JSON': True,
+    'COMPACT_JSON': False,
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+        'rest_framework.renderers.BrowsableAPIRenderer',
+    ],
 }
 
 SIMPLE_JWT = {
@@ -194,4 +202,36 @@ SIMPLE_JWT = {
     "TOKEN_BLACKLIST_SERIALIZER": "rest_framework_simplejwt.serializers.TokenBlacklistSerializer",
     "SLIDING_TOKEN_OBTAIN_SERIALIZER": "rest_framework_simplejwt.serializers.TokenObtainSlidingSerializer",
     "SLIDING_TOKEN_REFRESH_SERIALIZER": "rest_framework_simplejwt.serializers.TokenRefreshSlidingSerializer",
+}
+
+
+GDAL_LIBRARY_PATH = "/opt/homebrew/lib/libgdal.dylib"
+GEOS_LIBRARY_PATH = "/opt/homebrew/lib/libgeos_c.dylib"
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'formatters': {
+        'verbose': {
+            'format': '{asctime} {levelname} {module} {message}',
+            'style': '{',
+        },
+    },
+    'loggers': {
+        '': {
+            'handlers': ['console'],
+            'level': 'INFO',
+        },
+        'vehicles.views': {  # Логгер для ваших вьюшек
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+    },
 }

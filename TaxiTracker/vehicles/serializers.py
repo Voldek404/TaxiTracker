@@ -1,7 +1,10 @@
 from rest_framework import serializers
-from zoneinfo import ZoneInfo
-from vehicles.models import Vehicle, Brand, Driver, Enterprise, VehicleDriver, Manager
+from vehicles.models import Vehicle, Brand, Driver, Enterprise, VehicleDriver, Manager, VehicleTrackPoint
+from rest_framework_gis.serializers import GeoFeatureModelSerializer
+
 from django.utils import timezone
+from zoneinfo import ZoneInfo
+import json
 
 
 class BrandsSerializer(serializers.ModelSerializer):
@@ -86,12 +89,10 @@ class ManagersSerializer(serializers.ModelSerializer):
         for v in vehicles:
             car_purchase_time = None
             if v.car_purchase_time:
-                # UTC время
                 utc_time = v.car_purchase_time
                 if timezone.is_naive(utc_time):
                     utc_time = timezone.make_aware(utc_time, timezone.utc)
 
-                # Конвертация в таймзону предприятия
                 tz_name = v.enterprise.timezone or "UTC"
                 local_time = utc_time.astimezone(ZoneInfo(tz_name))
                 car_purchase_time = local_time.isoformat()
@@ -106,3 +107,46 @@ class ManagersSerializer(serializers.ModelSerializer):
 
         return vehicles_list
 
+class VehicleTrackPointSerializer(serializers.ModelSerializer):
+    timestamp = serializers.SerializerMethodField()
+
+
+    class Meta:
+        model = VehicleTrackPoint
+        fields = ['vehicle', 'point', 'timestamp']
+
+    def get_timestamp(self, obj):
+        utc_time = obj.timestamp
+        tz_name = obj.vehicle.enterprise.timezone if hasattr(obj.vehicle, 'enterprise') else "UTC"
+        local_time = utc_time.astimezone(ZoneInfo(tz_name))
+        return local_time.isoformat()
+
+
+class VehicleTrackPointGeoSerializer(serializers.Serializer):
+
+    def to_representation(self, instance):
+        tz_name = "UTC"
+        if hasattr(instance.vehicle, 'enterprise') and instance.vehicle.enterprise.timezone:
+            tz_name = instance.vehicle.enterprise.timezone
+
+        timestamp_formatted = instance.timestamp.astimezone(ZoneInfo(tz_name)).isoformat()
+
+        feature_data = {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    float(instance.point.x),
+                    float(instance.point.y)
+                ]
+            },
+            "properties": {
+                "car_id": instance.vehicle.id,
+                "car_brand": instance.vehicle.brand.product_name if instance.vehicle.brand else None,
+                "enterprise_name": instance.vehicle.enterprise.name if instance.vehicle.enterprise else None,
+                "id": instance.id,
+                "timestamp": timestamp_formatted,
+            },
+        }
+
+        return json.loads(json.dumps(feature_data, ensure_ascii=False))
