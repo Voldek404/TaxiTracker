@@ -113,7 +113,7 @@ class VehicleTrackPointSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = VehicleTrackPoint
-        fields = ['vehicle', 'point', 'timestamp']
+        fields = ['point', 'timestamp']
 
     def get_timestamp(self, obj):
         utc_time = obj.timestamp
@@ -141,10 +141,6 @@ class VehicleTrackPointGeoSerializer(serializers.Serializer):
                 ]
             },
             "properties": {
-                "car_id": instance.vehicle.id,
-                "car_brand": instance.vehicle.brand.product_name if instance.vehicle.brand else None,
-                "enterprise_name": instance.vehicle.enterprise.name if instance.vehicle.enterprise else None,
-                "id": instance.id,
                 "timestamp": timestamp_formatted,
             },
         }
