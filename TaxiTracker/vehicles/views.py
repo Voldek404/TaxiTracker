@@ -1,5 +1,6 @@
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib import messages
+from rest_framework.pagination import PageNumberPagination
 from django.urls import reverse
 from django.contrib.auth.views import LogoutView
 from django.contrib.auth import login
@@ -14,7 +15,7 @@ from django.views.generic import (
 )
 from django.urls import reverse_lazy
 from rest_framework import generics, filters
-from vehicles.models import Vehicle, Brand, Driver, Enterprise, VehicleDriver, Manager, VehicleTrackPoint
+from vehicles.models import Vehicle, Brand, Driver, Enterprise, VehicleDriver, Manager, VehicleTrackPoint, VehicleTrip
 from vehicles.serializers import (
     VehiclesSerializer,
     BrandsSerializer,
@@ -22,7 +23,7 @@ from vehicles.serializers import (
     EnterprisesSerializer,
     ManagersSerializer,
     VehicleTrackPointSerializer,
-    VehicleTrackPointGeoSerializer,
+    VehicleTrackPointGeoSerializer, VehicleTripSerializer
 )
 from vehicles.forms import VehicleForm
 from django.utils.dateparse import parse_datetime
@@ -48,6 +49,12 @@ from django.shortcuts import get_object_or_404
 from rest_framework_gis.serializers import GeoFeatureModelSerializer
 from rest_framework.renderers import JSONRenderer
 from django.http import HttpResponse
+
+class StandardResultsSetPagination(PageNumberPagination):
+    page_size = 1000
+    page_size_query_param = 'page_size'
+    max_page_size = 5000
+
 
 class MyPagination(PageNumberPagination):
     page_size = 10
@@ -479,6 +486,46 @@ class VehicleTrackAPIView(generics.ListAPIView):
             content_type="application/json; charset=utf-8"
         )
 
+
+class VehicleTripPointsRangeAPIView(generics.ListAPIView):
+    serializer_class = VehicleTrackPointSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
+
+    def get_queryset(self):
+        user = self.request.user
+        if not hasattr(user, "managers"):
+            raise PermissionDenied("У вас нет прав на просмотр")
+
+        manager = user.managers
+
+        vehicle_id = self.kwargs.get("pk") 
+        start = self.request.query_params.get("start")
+        end = self.request.query_params.get("end")
+
+        if not vehicle_id:
+            raise PermissionDenied("Не указан vehicle_id")
+
+        start_dt = parse_datetime(start) if start else None
+        end_dt = parse_datetime(end) if end else None
+        trips = VehicleTrip.objects.filter(
+            vehicle_id=vehicle_id,
+            vehicle__enterprise__in=manager.enterprises.all()
+        )
+        if start_dt:
+            trips = trips.filter(end_timestamp__gte=start_dt)
+        if end_dt:
+            trips = trips.filter(start_timestamp__lte=end_dt)
+
+        qs = VehicleTrackPoint.objects.none()
+        for trip in trips:
+            qs |= VehicleTrackPoint.objects.filter(
+                vehicle_id=vehicle_id,
+                timestamp__gte=trip.start_timestamp,
+                timestamp__lte=trip.end_timestamp
+            )
+
+        return Response(qs)
 
 
 

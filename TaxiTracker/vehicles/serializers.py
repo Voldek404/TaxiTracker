@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from vehicles.models import Vehicle, Brand, Driver, Enterprise, VehicleDriver, Manager, VehicleTrackPoint
+from vehicles.models import Vehicle, Brand, Driver, Enterprise, VehicleDriver, Manager, VehicleTrackPoint, VehicleTrip
 from rest_framework_gis.serializers import GeoFeatureModelSerializer
 
 from django.utils import timezone
@@ -146,3 +146,25 @@ class VehicleTrackPointGeoSerializer(serializers.Serializer):
         }
 
         return json.loads(json.dumps(feature_data, ensure_ascii=False))
+
+
+class VehicleTripSerializer(serializers.ModelSerializer):
+    points = serializers.SerializerMethodField()
+
+    class Meta:
+        model = VehicleTrip
+        fields = ["id", "vehicle", "start_timestamp", "end_timestamp", "points"]
+
+    def get_points(self, obj):
+        points = self.context.get("points")
+        if points is None:
+            return []
+
+        tz_name = getattr(obj.vehicle.enterprise, "timezone", "UTC")
+
+        return VehicleTrackPointSerializer(
+            points,
+            many=True,
+            context={"timezone": tz_name},
+        ).data
+

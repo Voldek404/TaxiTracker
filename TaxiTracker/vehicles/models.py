@@ -196,6 +196,19 @@ class VehicleTrackPoint(models.Model):
         return {"lat": obj.point.y, "lng": obj.point.x}
 
 
+class VehicleTrip(models.Model):
+    vehicle = models.ForeignKey(
+        Vehicle,
+        on_delete=models.CASCADE,
+    )
+    start_timestamp = models.DateTimeField(db_index=True)
+    end_timestamp = models.DateTimeField(db_index=True)
+    class Meta:
+        indexes = (
+            models.Index(fields=["vehicle", "start_timestamp", "end_timestamp"]),
+        )
+
+
 class Manager(models.Model):
     full_name = models.CharField(max_length=50)
     city = models.CharField(max_length=50)
