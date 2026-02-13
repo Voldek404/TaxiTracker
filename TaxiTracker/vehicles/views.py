@@ -1,6 +1,5 @@
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib import messages
-from rest_framework.pagination import PageNumberPagination
 from django.urls import reverse
 from django.contrib.auth.views import LogoutView
 from django.contrib.auth import login
@@ -50,10 +49,7 @@ from rest_framework_gis.serializers import GeoFeatureModelSerializer
 from rest_framework.renderers import JSONRenderer
 from django.http import HttpResponse
 
-class StandardResultsSetPagination(PageNumberPagination):
-    page_size = 1000
-    page_size_query_param = 'page_size'
-    max_page_size = 5000
+
 
 
 class MyPagination(PageNumberPagination):
@@ -489,8 +485,9 @@ class VehicleTrackAPIView(generics.ListAPIView):
 
 class VehicleTripPointsRangeAPIView(generics.ListAPIView):
     serializer_class = VehicleTrackPointSerializer
+    authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
-    pagination_class = StandardResultsSetPagination
+
 
     def get_queryset(self):
         user = self.request.user
@@ -499,7 +496,7 @@ class VehicleTripPointsRangeAPIView(generics.ListAPIView):
 
         manager = user.managers
 
-        vehicle_id = self.kwargs.get("pk") 
+        vehicle_id = self.kwargs.get("pk")
         start = self.request.query_params.get("start")
         end = self.request.query_params.get("end")
 
@@ -508,15 +505,18 @@ class VehicleTripPointsRangeAPIView(generics.ListAPIView):
 
         start_dt = parse_datetime(start) if start else None
         end_dt = parse_datetime(end) if end else None
+
         trips = VehicleTrip.objects.filter(
             vehicle_id=vehicle_id,
             vehicle__enterprise__in=manager.enterprises.all()
         )
+
         if start_dt:
             trips = trips.filter(end_timestamp__gte=start_dt)
         if end_dt:
             trips = trips.filter(start_timestamp__lte=end_dt)
 
+        # Формируем queryset точек
         qs = VehicleTrackPoint.objects.none()
         for trip in trips:
             qs |= VehicleTrackPoint.objects.filter(
@@ -525,8 +525,7 @@ class VehicleTripPointsRangeAPIView(generics.ListAPIView):
                 timestamp__lte=trip.end_timestamp
             )
 
-        return Response(qs)
-
+        return qs.order_by("timestamp")
 
 
 
