@@ -3,18 +3,27 @@ from django.contrib import messages
 from django.urls import reverse
 from django.contrib.auth.views import LogoutView
 from django.contrib.auth import login
+from django.db.models import OuterRef, Subquery
 from django.views.generic import (
     ListView,
-    DetailView,
     CreateView,
     UpdateView,
     DeleteView,
     FormView,
-    View
+    View,
 )
 from django.urls import reverse_lazy
 from rest_framework import generics, filters
-from vehicles.models import Vehicle, Brand, Driver, Enterprise, VehicleDriver, Manager, VehicleTrackPoint, VehicleTrip
+from vehicles.models import (
+    Vehicle,
+    Brand,
+    Driver,
+    Enterprise,
+    VehicleDriver,
+    Manager,
+    VehicleTrackPoint,
+    VehicleTrip,
+)
 from vehicles.serializers import (
     VehiclesSerializer,
     BrandsSerializer,
@@ -22,11 +31,10 @@ from vehicles.serializers import (
     EnterprisesSerializer,
     ManagersSerializer,
     VehicleTrackPointSerializer,
-    VehicleTrackPointGeoSerializer, VehicleTripSerializer
+    VehicleTrackPointGeoSerializer,
 )
 from vehicles.forms import VehicleForm
 from django.utils.dateparse import parse_datetime
-from django.utils import timezone
 from rest_framework.response import Response
 from rest_framework.authentication import SessionAuthentication
 from rest_framework_simplejwt.authentication import JWTAuthentication
@@ -50,8 +58,6 @@ from rest_framework.renderers import JSONRenderer
 from django.http import HttpResponse
 
 
-
-
 class MyPagination(PageNumberPagination):
     page_size = 10
     page_size_query_param = "size"
@@ -61,7 +67,6 @@ class MyPagination(PageNumberPagination):
     available_sizes = [10, 20, 50]
 
     def get_paginated_response(self, data):
-        base_url = self.request.build_absolute_uri().split("?")[0]
         current_size = int(
             self.request.GET.get(self.page_size_query_param, self.page_size)
         )
@@ -101,7 +106,6 @@ class MyPagination(PageNumberPagination):
         return range(start, end + 1)
 
 
-
 class UserLoginView(FormView):
     template_name = "authentication/login.html"
     form_class = AuthenticationForm
@@ -128,9 +132,7 @@ class ManagerDashboardView(ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["timezone_choices"] = (
-            Enterprise._meta.get_field("timezone").choices
-        )
+        context["timezone_choices"] = Enterprise._meta.get_field("timezone").choices
         return context
 
 
@@ -149,7 +151,7 @@ class SetTimezoneView(View):
         data = json.loads(request.body)
         tzname = data.get("timezone")
         if tzname:
-            request.session['django_timezone'] = tzname
+            request.session["django_timezone"] = tzname
             return JsonResponse({"status": "ok"})
         return JsonResponse({"status": "error"}, status=400)
 
@@ -159,7 +161,6 @@ class ManagerVehicleDashboardView(ListView):
     model = Vehicle
     paginate_by = 10
     context_object_name = "vehicles"
-
 
     def get_queryset(self):
         user = self.request.user
@@ -251,8 +252,7 @@ class VehiclesBulkDeleteView(DeleteView):
         if vehicle_ids:
             if vehicles.filter(driver__isnull=False).exists():
                 messages.warning(
-                    request,
-                    "Нельзя удалить автомобили, к которым назначен водитель"
+                    request, "Нельзя удалить автомобили, к которым назначен водитель"
                 )
                 return redirect(request.META.get("HTTP_REFERER", "/"))
             deleted_count = vehicles.count()
@@ -460,13 +460,10 @@ class VehicleTrackAPIView(generics.ListAPIView):
 
         if self.request.query_params.get("type") == "geojson":
             serializer = VehicleTrackPointGeoSerializer(queryset, many=True)
-            data = {
-                "type": "FeatureCollection",
-                "features": serializer.data
-            }
+            data = {"type": "FeatureCollection", "features": serializer.data}
             return HttpResponse(
                 json.dumps(data, ensure_ascii=False, indent=2),
-                content_type="application/json; charset=utf-8"
+                content_type="application/json; charset=utf-8",
             )
         else:
             serializer = VehicleTrackPointSerializer(queryset, many=True)
@@ -474,20 +471,19 @@ class VehicleTrackAPIView(generics.ListAPIView):
                 "count": queryset.count(),
                 "next": None,
                 "previous": None,
-                "results": serializer.data
+                "results": serializer.data,
             }
 
         return HttpResponse(
             json.dumps(data, ensure_ascii=False, indent=2),
-            content_type="application/json; charset=utf-8"
+            content_type="application/json; charset=utf-8",
         )
 
 
 class VehicleTripPointsRangeAPIView(generics.ListAPIView):
-    serializer_class = VehicleTrackPointSerializer
+    serializer_class = VehicleTrackPointGeoSerializer
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
-
 
     def get_queryset(self):
         user = self.request.user
@@ -495,7 +491,6 @@ class VehicleTripPointsRangeAPIView(generics.ListAPIView):
             raise PermissionDenied("У вас нет прав на просмотр")
 
         manager = user.managers
-
         vehicle_id = self.kwargs.get("pk")
         start = self.request.query_params.get("start")
         end = self.request.query_params.get("end")
@@ -505,28 +500,28 @@ class VehicleTripPointsRangeAPIView(generics.ListAPIView):
 
         start_dt = parse_datetime(start) if start else None
         end_dt = parse_datetime(end) if end else None
-
         trips = VehicleTrip.objects.filter(
             vehicle_id=vehicle_id,
-            vehicle__enterprise__in=manager.enterprises.all()
+            vehicle__enterprise__in=manager.enterprises.all(),
         )
 
         if start_dt:
-            trips = trips.filter(end_timestamp__gte=start_dt)
+            trips = trips.filter(start_timestamp__gte=start_dt)
+
         if end_dt:
-            trips = trips.filter(start_timestamp__lte=end_dt)
+            trips = trips.filter(end_timestamp__lte=end_dt)
 
-        # Формируем queryset точек
-        qs = VehicleTrackPoint.objects.none()
-        for trip in trips:
-            qs |= VehicleTrackPoint.objects.filter(
-                vehicle_id=vehicle_id,
-                timestamp__gte=trip.start_timestamp,
-                timestamp__lte=trip.end_timestamp
+        qs = (
+            VehicleTrackPoint.objects.filter(vehicle_id=vehicle_id)
+            .annotate(
+                trip_id=Subquery(
+                    trips.filter(
+                        start_timestamp__lte=OuterRef("timestamp"),
+                        end_timestamp__gte=OuterRef("timestamp"),
+                    ).values("id")[:1]
+                )
             )
+            .filter(trip_id__isnull=False)
+        )
 
-        return qs.order_by("timestamp")
-
-
-
-
+        return qs

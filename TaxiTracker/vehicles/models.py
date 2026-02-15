@@ -1,25 +1,22 @@
 from django.core.validators import MaxValueValidator, MinValueValidator
-from django.db import models
 from django.contrib.auth.models import User
 from django.contrib.gis.db import models
-import zoneinfo
-import time
 from django.utils import timezone
 
 ENTERPRISE_TIMEZONES = [
     ("UTC", "UTC±00:00 — Coordinated Universal Time"),
     ("Europe/London", "UTC±00:00 — London"),
-    ("Europe/Paris",  "UTC+01:00 — Paris"),
+    ("Europe/Paris", "UTC+01:00 — Paris"),
     ("Europe/Berlin", "UTC+01:00 — Berlin"),
     ("Europe/Moscow", "UTC+03:00 — Moscow"),
-    ("Asia/Dubai",    "UTC+04:00 — Dubai"),
-    ("Asia/Almaty",   "UTC+06:00 — Almaty"),
+    ("Asia/Dubai", "UTC+04:00 — Dubai"),
+    ("Asia/Almaty", "UTC+06:00 — Almaty"),
     ("Asia/Tashkent", "UTC+05:00 — Tashkent"),
     ("Asia/Shanghai", "UTC+08:00 — Shanghai"),
-    ("Asia/Tokyo",    "UTC+09:00 — Tokyo"),
-    ("America/New_York",    "UTC−05:00 — New York"),
-    ("America/Chicago",     "UTC−06:00 — Chicago"),
-    ("America/Denver",      "UTC−07:00 — Denver"),
+    ("Asia/Tokyo", "UTC+09:00 — Tokyo"),
+    ("America/New_York", "UTC−05:00 — New York"),
+    ("America/Chicago", "UTC−06:00 — Chicago"),
+    ("America/Denver", "UTC−07:00 — Denver"),
     ("America/Los_Angeles", "UTC−08:00 — Los Angeles"),
 ]
 
@@ -129,9 +126,7 @@ class Vehicle(models.Model):
     )
 
     def __str__(self):
-        return (
-            f"id = {self.id} Авто. Госномер {self.plate_number}. Модель - {self.brand}. Дата продажи - {self.car_purchase_time}"
-        )
+        return f"id = {self.id} Авто. Госномер {self.plate_number}. Модель - {self.brand}. Дата продажи - {self.car_purchase_time}"
 
     @property
     def car_purchase_time_utc(self):
@@ -179,6 +174,20 @@ class Vehicle(models.Model):
             VehicleDriver.objects.filter(vehicle=self).update(is_active=False)
 
 
+class VehicleTrip(models.Model):
+    vehicle = models.ForeignKey(
+        Vehicle,
+        on_delete=models.CASCADE,
+    )
+    start_timestamp = models.DateTimeField(db_index=True)
+    end_timestamp = models.DateTimeField(db_index=True)
+
+    class Meta:
+        indexes = (
+            models.Index(fields=["vehicle", "start_timestamp", "end_timestamp"]),
+        )
+
+
 class VehicleTrackPoint(models.Model):
     vehicle = models.ForeignKey(
         Vehicle,
@@ -188,25 +197,10 @@ class VehicleTrackPoint(models.Model):
     timestamp = models.DateTimeField(db_index=True)
 
     class Meta:
-        indexes = (
-            models.Index(fields=["vehicle", "timestamp"]),
-        )
+        indexes = (models.Index(fields=["vehicle", "timestamp"]),)
 
     def get_point(self, obj):
         return {"lat": obj.point.y, "lng": obj.point.x}
-
-
-class VehicleTrip(models.Model):
-    vehicle = models.ForeignKey(
-        Vehicle,
-        on_delete=models.CASCADE,
-    )
-    start_timestamp = models.DateTimeField(db_index=True)
-    end_timestamp = models.DateTimeField(db_index=True)
-    class Meta:
-        indexes = (
-            models.Index(fields=["vehicle", "start_timestamp", "end_timestamp"]),
-        )
 
 
 class Manager(models.Model):
