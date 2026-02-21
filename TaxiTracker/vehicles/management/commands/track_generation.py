@@ -7,7 +7,7 @@ from django.utils import timezone
 import math
 from shapely.geometry import Point, Polygon
 
-from vehicles.models import Vehicle, VehicleTrackPoint
+from vehicles.models import Vehicle, VehicleTrackPoint, VehicleTrip
 
 API_KEY = "9d21bd0b-f7f2-4438-9643-0ae8a5807b52"
 BASE_URL = "https://graphhopper.com/api/1"
@@ -47,6 +47,7 @@ class Command(BaseCommand):
         parser.add_argument("--interval", type=int, default=10, help="секунды между точками")
         parser.add_argument("--track-km", type=float, default=5, help="суммарная длина трека в км")
         parser.add_argument("--step", type=float, default=20, help="шаг между точками в метрах")
+        parser.add_argument("--trip-id", type=int, required=True)
 
     def interpolate_route(self, route, step):
         interpolated = []
@@ -69,49 +70,63 @@ class Command(BaseCommand):
         return interpolated
 
     def handle(self, *args, **opts):
-        vehicle = Vehicle.objects.get(id=opts["vehicle_id"])
+        trip = VehicleTrip.objects.select_related("vehicle").get(id=opts["trip_id"])
+        vehicle = trip.vehicle
+
         interval = opts["interval"]
-        target_distance = opts["track_km"] * 1000  # метры
+
+        start_time = trip.start_timestamp
+        end_time = trip.end_timestamp
+        total_seconds = (end_time - start_time).total_seconds()
 
         current_lat, current_lon = 55.7558, 37.6173
         traveled = 0
         point_counter = 0
 
+        timestamps = []
+
         self.stdout.write(self.style.SUCCESS(
-            f"Старт трекинга авто {vehicle.id} ({vehicle.plate_number})"
+            f"Генерация трека для trip {trip.id}"
         ))
 
-        while traveled < target_distance:
-            angle = random.uniform(0, 2 * 3.1415)
-            distance = random.uniform(800, 3000)  # метры
-            dlat = (distance / 111_320) * math.cos(angle)
-            dlon = (distance / 111_320) * math.sin(angle)
-            dest_lat = current_lat + dlat
-            dest_lon = current_lon + dlon
-            pt = Point(dest_lon, dest_lat)
-            if not moscow_polygon.contains(pt):
-                continue
+        # --- строим маршрут ---
+        angle = random.uniform(0, 2 * 3.1415)
+        distance = opts["track_km"] * 1000
 
-            try:
-                route = self.graphhopper_route(start=(current_lat, current_lon),
-                                               end=(dest_lat, dest_lon))
-            except Exception as e:
-                self.stderr.write(f"Ошибка маршрута: {e}")
-                continue
+        dlat = (distance / 111_320) * math.cos(angle)
+        dlon = (distance / 111_320) * math.sin(angle)
 
-            for lon, lat in self.interpolate_route(route, opts["step"]):
-                VehicleTrackPoint.objects.create(
+        dest_lat = current_lat + dlat
+        dest_lon = current_lon + dlon
+
+        route = self.graphhopper_route(
+            start=(current_lat, current_lon),
+            end=(dest_lat, dest_lon)
+        )
+
+        interpolated = self.interpolate_route(route, opts["step"])
+        total_points = len(interpolated)
+
+        # --- вычисляем шаг времени ---
+        time_step = total_seconds / max(total_points - 1, 1)
+
+        objects = []
+
+        for i, (lon, lat) in enumerate(interpolated):
+            ts = start_time + timezone.timedelta(seconds=i * time_step)
+
+            objects.append(
+                VehicleTrackPoint(
                     vehicle=vehicle,
                     point=GEOSPoint(lon, lat, srid=4326),
-                    timestamp=timezone.now(),
+                    timestamp=ts,
                 )
-                point_counter += 1
+            )
 
-            current_lat, current_lon = dest_lat, dest_lon
-            traveled += distance
-            time.sleep(interval)
+            point_counter += 1
+
+        VehicleTrackPoint.objects.bulk_create(objects)
 
         self.stdout.write(self.style.SUCCESS(
-            f"Генерация трека завершена. Создано точек: {point_counter}, "
-            f"Пройдено: {traveled / 1000:.2f} км"
+            f"Создано точек: {point_counter}"
         ))

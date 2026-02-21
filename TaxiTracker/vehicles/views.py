@@ -57,6 +57,8 @@ from rest_framework_gis.serializers import GeoFeatureModelSerializer
 from rest_framework.renderers import JSONRenderer
 from django.http import HttpResponse
 
+from vehicles.serializers import VehicleTripSerializer
+
 
 class MyPagination(PageNumberPagination):
     page_size = 10
@@ -493,7 +495,16 @@ class VehicleTripPointsRangeAPIView(generics.ListAPIView):
         manager = user.managers
         vehicle_id = self.kwargs.get("pk")
         start = self.request.query_params.get("start")
+        if start:
+            start_dt = parse_datetime(start)
+            if start_dt:
+                qs = qs.filter(timestamp__gte=start_dt)
+
         end = self.request.query_params.get("end")
+        if end:
+            end_dt = parse_datetime(end)
+            if end_dt:
+                qs = qs.filter(timestamp__lte=end_dt)
 
         if not vehicle_id:
             raise PermissionDenied("Не указан vehicle_id")
@@ -525,3 +536,71 @@ class VehicleTripPointsRangeAPIView(generics.ListAPIView):
         )
 
         return qs
+
+
+class VehicleTripsAPIView(generics.ListAPIView):
+    serializer_class = VehicleTripSerializer
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+
+        if not hasattr(user, "managers"):
+            raise PermissionDenied("У вас нет прав на просмотр")
+
+        manager = user.managers
+        vehicle_id = self.kwargs.get("pk")
+
+        if not vehicle_id:
+            raise PermissionDenied("Не указан vehicle_id")
+
+        start = self.request.query_params.get("start")
+        end = self.request.query_params.get("end")
+
+        start_dt = parse_datetime(start) if start else None
+        end_dt = parse_datetime(end) if end else None
+
+        trips = VehicleTrip.objects.filter(
+            vehicle_id=vehicle_id,
+            vehicle__enterprise__in=manager.enterprises.all(),
+        )
+
+        if start_dt:
+            trips = trips.filter(start_timestamp__gte=start_dt)
+
+        if end_dt:
+            trips = trips.filter(end_timestamp__lte=end_dt)
+
+        # --- Subquery для первой точки ---
+        start_point_subquery = (
+            VehicleTrackPoint.objects
+            .filter(
+                vehicle=OuterRef("vehicle"),
+                timestamp__gte=OuterRef("start_timestamp"),
+                timestamp__lte=OuterRef("end_timestamp"),
+            )
+            .order_by("timestamp")
+            .values("id")[:1]
+        )
+
+        # --- Subquery для последней точки ---
+        end_point_subquery = (
+            VehicleTrackPoint.objects
+            .filter(
+                vehicle=OuterRef("vehicle"),
+                timestamp__gte=OuterRef("start_timestamp"),
+                timestamp__lte=OuterRef("end_timestamp"),
+            )
+            .order_by("-timestamp")
+            .values("id")[:1]
+        )
+
+        return (
+            trips
+            .annotate(
+                start_point_id=Subquery(start_point_subquery),
+                end_point_id=Subquery(end_point_subquery),
+            )
+            .order_by("-start_timestamp")
+        )

@@ -19,7 +19,7 @@ from django.urls import path
 
 from vehicles.views import (VehiclesApiView, BrandsApiView, VehiclesDetailApiView,
                             DriversApiView, EnterprisesApiView, DriversDetailApiView, EnterprisesDetailApiView,
-                            ManagersApiView, ManagersDetailApiView, UserLoginView, UserLogoutView, ManagerDashboardView, ManagerVehicleDashboardView,  ManagerVehicleCreateView, VehiclesBulkDeleteView, ManagerVehicleUpdateView, EnterpriseTimezoneUpdateView, SetTimezoneView,VehicleTrackAPIView, VehicleTripPointsRangeAPIView)
+                            ManagersApiView, ManagersDetailApiView, UserLoginView, UserLogoutView, ManagerDashboardView, ManagerVehicleDashboardView,  ManagerVehicleCreateView, VehiclesBulkDeleteView, ManagerVehicleUpdateView, EnterpriseTimezoneUpdateView, SetTimezoneView,VehicleTrackAPIView, VehicleTripPointsRangeAPIView, VehicleTripsAPIView)
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenVerifyView
 
 urlpatterns = [
@@ -47,7 +47,8 @@ urlpatterns = [
     path('api/v1/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/v1/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
     path('api/v1/vehicle-track/', VehicleTrackAPIView.as_view(), name='vehicle-track'),
-    path('api/v1/vehicle_trips/<int:pk>/points/', VehicleTripPointsRangeAPIView.as_view(), name='vehicle-trips'),
+    path('api/v1/vehicle_trips/<int:pk>/points/', VehicleTripPointsRangeAPIView.as_view(), name='vehicle-trips-points'),
+    path('api/v1/vehicle_trips/<int:pk>/', VehicleTripsAPIView.as_view(), name='vehicle-trips'),
 ]
 
 

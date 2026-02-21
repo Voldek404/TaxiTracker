@@ -10,6 +10,7 @@ from vehicles.models import (
     VehicleTrip,
 )
 from rest_framework_gis.serializers import GeoFeatureModelSerializer
+from vehicles.services.geocoding import reverse_geocode
 
 from django.utils import timezone
 from zoneinfo import ZoneInfo
@@ -182,3 +183,63 @@ class VehicleTrackPointGeoSerializer(serializers.Serializer):
         }
 
         return json.loads(json.dumps(feature_data, ensure_ascii=False))
+
+class VehicleTripSerializer(serializers.ModelSerializer):
+    start_point_id = serializers.IntegerField(read_only=True)
+    end_point_id = serializers.IntegerField(read_only=True)
+    start_address = serializers.SerializerMethodField()
+    end_address = serializers.SerializerMethodField()
+
+    class Meta:
+        model = VehicleTrip
+        fields = [
+            "id",
+            "start_timestamp",
+            "end_timestamp",
+            "start_point_id",
+            "end_point_id",
+            "start_address",
+            "end_address",
+        ]
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+
+        tz_name = "UTC"
+        if (
+            hasattr(instance.vehicle, "enterprise")
+            and instance.vehicle.enterprise.timezone
+        ):
+            tz_name = instance.vehicle.enterprise.timezone
+
+        tz = ZoneInfo(tz_name)
+
+        start_ts = instance.start_timestamp
+
+        data["start_timestamp"] = start_ts.astimezone(tz).isoformat()
+
+        end_ts = instance.end_timestamp
+
+        data["end_timestamp"] = end_ts.astimezone(tz).isoformat()
+
+        return data
+
+    def get_start_address(self, obj):
+        if not obj.start_point_id:
+            return None
+
+        try:
+            point = VehicleTrackPoint.objects.get(id=obj.start_point_id)
+            return reverse_geocode(point.point.y, point.point.x)
+        except VehicleTrackPoint.DoesNotExist:
+            return None
+
+    def get_end_address(self, obj):
+        if not obj.end_point_id:
+            return None
+
+        try:
+            point = VehicleTrackPoint.objects.get(id=obj.end_point_id)
+            return reverse_geocode(point.point.y, point.point.x)
+        except VehicleTrackPoint.DoesNotExist:
+            return None
