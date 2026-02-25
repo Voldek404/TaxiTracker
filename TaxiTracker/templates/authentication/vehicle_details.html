@@ -3,6 +3,8 @@
 {% load tz %}
 {% get_current_timezone as TIME_ZONE %}
 <head>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <meta charset="UTF-8">
     <title>Vehicle Details</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -158,6 +160,88 @@
             <a href="{% url 'vehicles' ui_vehicle_details.enterprise.id %}" class="btn btn-secondary">Назад к списку</a>
         </div>
     </form>
+    <hr class="mt-5">
+
+<h3>Поездки автомобиля</h3>
+
+<form method="get" class="row g-3 mb-4">
+    <div class="col-md-3">
+        <label class="form-label">С даты</label>
+        <input type="datetime-local" name="start"
+               value="{{ filter_start }}"
+               class="form-control">
+    </div>
+
+    <div class="col-md-3">
+        <label class="form-label">По дату</label>
+        <input type="datetime-local" name="end"
+               value="{{ filter_end }}"
+               class="form-control">
+    </div>
+
+    <div class="col-md-3 align-self-end">
+        <button type="submit" class="btn btn-primary">Фильтр</button>
+        <a href="" class="btn btn-secondary">Сброс</a>
+    </div>
+</form>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th></th>
+            <th>ID</th>
+            <th>Начало</th>
+            <th>Конец</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for trip in trips %}
+        <tr>
+            <td>
+                <input type="checkbox"
+                       class="trip-checkbox"
+                       value="{{ trip.id }}"
+                       data-start="{{ trip.start_timestamp|date:'c' }}"
+                       data-end="{{ trip.end_timestamp|date:'c' }}">
+            </td>
+            <td>{{ trip.id }}</td>
+            <td>{{ trip.start_timestamp|localtime|date:"d.m.Y H:i" }}</td>
+            <td>{{ trip.end_timestamp|localtime|date:"d.m.Y H:i" }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<h4 class="mt-4">Карта поездок</h4>
+<div id="map" style="height: 500px;"></div>
+
+<nav>
+    <ul class="pagination">
+        {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link"
+                   href="?page={{ page_obj.previous_page_number }}&start={{ filter_start }}&end={{ filter_end }}">
+                    Назад
+                </a>
+            </li>
+        {% endif %}
+
+        <li class="page-item active">
+            <span class="page-link">
+                {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
+            </span>
+        </li>
+
+        {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link"
+                   href="?page={{ page_obj.next_page_number }}&start={{ filter_start }}&end={{ filter_end }}">
+                    Вперёд
+                </a>
+            </li>
+        {% endif %}
+    </ul>
+</nav>
 </div>
 
 <script>
@@ -207,6 +291,57 @@
         },
         body: JSON.stringify({ timezone: userTimezone })
     });
+const vehicleId = "{{ ui_vehicle_details.id }}";
+
+let map = L.map('map').setView([55.75, 37.61], 10);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+
+let polylines = new Map();
+
+function getRandomColor() {
+    return "#" + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.trip-checkbox').forEach(checkbox => {
+
+        checkbox.addEventListener('change', function() {
+
+            const tripId = this.value;
+            const start = this.dataset.start;
+            const end = this.dataset.end;
+
+            if (this.checked) {
+                fetch(`/vehicle_trips/${vehicleId}/points_dashboard/?trip_id=${tripId}&start=${start}&end=${end}`)
+                    .then(resp => {
+                        if (!resp.ok) throw new Error("Ошибка загрузки точек");
+                        return resp.json();
+                    })
+                    .then(data => {
+                        const latlngs = data.points.map(p => [p.lat, p.lng]);
+                        if (!latlngs.length) return;
+
+                        const polyline = L.polyline(latlngs, {
+                            color: getRandomColor(),
+                            weight: 4
+                        }).addTo(map);
+
+                        polylines.set(this, polyline);
+                        map.fitBounds(polyline.getBounds());
+                    })
+                    .catch(err => console.error(err));
+
+            } else {
+                if (polylines.has(this)) {
+                    map.removeLayer(polylines.get(this));
+                    polylines.delete(this);
+                }
+            }
+        });
+    });
+});
 </script>
 </body>
 </html>

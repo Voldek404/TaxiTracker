@@ -12,10 +12,10 @@ from vehicles.models import Vehicle, VehicleTrackPoint, VehicleTrip
 API_KEY = "9d21bd0b-f7f2-4438-9643-0ae8a5807b52"
 BASE_URL = "https://graphhopper.com/api/1"
 moscow_polygon = Polygon([
-    (37.6, 55.75),
-    (37.6, 55.76),
-    (37.62, 55.76),
-    (37.62, 55.75)
+    (37.35, 55.55),
+    (37.35, 55.95),
+    (37.85, 55.95),
+    (37.85, 55.55),
 ])
 
 
@@ -47,7 +47,7 @@ class Command(BaseCommand):
         parser.add_argument("--interval", type=int, default=10, help="секунды между точками")
         parser.add_argument("--track-km", type=float, default=5, help="суммарная длина трека в км")
         parser.add_argument("--step", type=float, default=20, help="шаг между точками в метрах")
-        parser.add_argument("--trip-id", type=int, required=True)
+        parser.add_argument("--trip-id", type=int, required=False)
 
     def interpolate_route(self, route, step):
         interpolated = []
@@ -55,7 +55,7 @@ class Command(BaseCommand):
             lon1, lat1 = route[i]
             lon2, lat2 = route[i + 1]
 
-            dx = (lon2 - lon1) * 111_320
+            dx = (lon2 - lon1) * 111_320  
             dy = (lat2 - lat1) * 111_320
             segment_length = math.sqrt(dx ** 2 + dy ** 2)
 
@@ -70,63 +70,66 @@ class Command(BaseCommand):
         return interpolated
 
     def handle(self, *args, **opts):
-        trip = VehicleTrip.objects.select_related("vehicle").get(id=opts["trip_id"])
-        vehicle = trip.vehicle
+        vehicle = Vehicle.objects.get(id=opts["vehicle_id"])
+        trip_id = opts.get("trip_id")
 
+        if trip_id:
+            trip = VehicleTrip.objects.get(id=trip_id, vehicle=vehicle)
+        else:
+            now = timezone.now()
+            trip = VehicleTrip.objects.create(
+                vehicle=vehicle,
+                start_timestamp=now,
+                end_timestamp=now + timezone.timedelta(minutes=10),
+            )
         interval = opts["interval"]
+        target_distance = opts["track_km"] * 1000
 
-        start_time = trip.start_timestamp
-        end_time = trip.end_timestamp
-        total_seconds = (end_time - start_time).total_seconds()
-
-        current_lat, current_lon = 55.7558, 37.6173
+        min_lon, min_lat, max_lon, max_lat = moscow_polygon.bounds
+        current_lon = random.uniform(min_lon, max_lon)
+        current_lat = random.uniform(min_lat, max_lat)
         traveled = 0
         point_counter = 0
 
-        timestamps = []
-
         self.stdout.write(self.style.SUCCESS(
-            f"Генерация трека для trip {trip.id}"
+            f"Старт трекинга авто {vehicle.id} ({vehicle.plate_number})"
         ))
 
-        # --- строим маршрут ---
-        angle = random.uniform(0, 2 * 3.1415)
-        distance = opts["track_km"] * 1000
+        while traveled < target_distance:
+            angle = random.uniform(0, 2 * 3.1415)
+            distance = random.uniform(800, 3000)
+            dlat = (distance / 111_320) * math.cos(angle)
+            dlon = (distance / 111_320) * math.sin(angle)
+            dest_lat = current_lat + dlat
+            dest_lon = current_lon + dlon
+            pt = Point(dest_lon, dest_lat)
+            if not moscow_polygon.contains(pt):
+                continue
 
-        dlat = (distance / 111_320) * math.cos(angle)
-        dlon = (distance / 111_320) * math.sin(angle)
+            try:
+                route = self.graphhopper_route(start=(current_lat, current_lon),
+                                               end=(dest_lat, dest_lon))
+            except Exception as e:
+                self.stderr.write(f"Ошибка маршрута: {e}")
+                continue
 
-        dest_lat = current_lat + dlat
-        dest_lon = current_lon + dlon
+            interpolated = self.interpolate_route(route, opts["step"])
 
-        route = self.graphhopper_route(
-            start=(current_lat, current_lon),
-            end=(dest_lat, dest_lon)
-        )
-
-        interpolated = self.interpolate_route(route, opts["step"])
-        total_points = len(interpolated)
-
-        # --- вычисляем шаг времени ---
-        time_step = total_seconds / max(total_points - 1, 1)
-
-        objects = []
-
-        for i, (lon, lat) in enumerate(interpolated):
-            ts = start_time + timezone.timedelta(seconds=i * time_step)
-
-            objects.append(
-                VehicleTrackPoint(
+            for lon, lat in interpolated:
+                VehicleTrackPoint.objects.create(
                     vehicle=vehicle,
                     point=GEOSPoint(lon, lat, srid=4326),
-                    timestamp=ts,
+                    timestamp=timezone.now(),
                 )
-            )
+                point_counter += 1
 
-            point_counter += 1
+            last_lon, last_lat = interpolated[-1]
+            current_lat, current_lon = last_lat, last_lon
 
-        VehicleTrackPoint.objects.bulk_create(objects)
+            traveled += distance
+            time.sleep(interval)
 
         self.stdout.write(self.style.SUCCESS(
-            f"Создано точек: {point_counter}"
+            f"Генерация трека завершена. Создано точек: {point_counter}, "
+            f"Пройдено: {traveled / 1000:.2f} км"
         ))

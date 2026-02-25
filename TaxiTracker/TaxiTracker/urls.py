@@ -19,7 +19,7 @@ from django.urls import path
 
 from vehicles.views import (VehiclesApiView, BrandsApiView, VehiclesDetailApiView,
                             DriversApiView, EnterprisesApiView, DriversDetailApiView, EnterprisesDetailApiView,
-                            ManagersApiView, ManagersDetailApiView, UserLoginView, UserLogoutView, ManagerDashboardView, ManagerVehicleDashboardView,  ManagerVehicleCreateView, VehiclesBulkDeleteView, ManagerVehicleUpdateView, EnterpriseTimezoneUpdateView, SetTimezoneView,VehicleTrackAPIView, VehicleTripPointsRangeAPIView, VehicleTripsAPIView)
+                            ManagersApiView, ManagersDetailApiView, UserLoginView, UserLogoutView, ManagerDashboardView, ManagerVehicleDashboardView,  ManagerVehicleCreateView, VehiclesBulkDeleteView, ManagerVehicleUpdateView, EnterpriseTimezoneUpdateView, SetTimezoneView,VehicleTrackAPIView, VehicleTripPointsRangeAPIView, VehicleTripPointsView)
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenVerifyView
 
 urlpatterns = [
@@ -33,6 +33,7 @@ urlpatterns = [
     path('vehicles_bulk_delete/', VehiclesBulkDeleteView.as_view(), name='vehicles_bulk_delete'),
     path("enterprise/<int:pk>/timezone/",EnterpriseTimezoneUpdateView.as_view(),name="update_enterprise_timezone"),
     path('set-timezone/', SetTimezoneView.as_view(), name='set_timezone'),
+    path("vehicle_trips/<int:vehicle_id>/points_dashboard/",VehicleTripPointsView.as_view(),name="vehicle_trip_points"),
 
     path('api/v1/brands/<int:page>/', BrandsApiView.as_view()),
     path('api/v1/vehicles/', VehiclesApiView.as_view()),
@@ -48,7 +49,7 @@ urlpatterns = [
     path('api/v1/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
     path('api/v1/vehicle-track/', VehicleTrackAPIView.as_view(), name='vehicle-track'),
     path('api/v1/vehicle_trips/<int:pk>/points/', VehicleTripPointsRangeAPIView.as_view(), name='vehicle-trips-points'),
-    path('api/v1/vehicle_trips/<int:pk>/', VehicleTripsAPIView.as_view(), name='vehicle-trips'),
+    # path('api/v1/vehicle_trips/<int:pk>/', VehicleTripsAPIView.as_view(), name='vehicle-trips'),
 ]
 
 

@@ -1,7 +1,9 @@
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib import messages
+from django.core.paginator import Paginator
 from django.urls import reverse
 from django.contrib.auth.views import LogoutView
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth import login
 from django.db.models import OuterRef, Subquery
 from django.views.generic import (
@@ -161,7 +163,7 @@ class SetTimezoneView(View):
 class ManagerVehicleDashboardView(ListView):
     template_name = "authentication/vehicles_dashboard.html"
     model = Vehicle
-    paginate_by = 10
+    paginate_by = 100
     context_object_name = "vehicles"
 
     def get_queryset(self):
@@ -206,7 +208,7 @@ class ManagerVehicleUpdateView(UpdateView):
     form_class = VehicleForm
     template_name = "authentication/vehicle_details.html"  # Твой текущий шаблон
     context_object_name = "ui_vehicle_details"
-    pagination_class = MyPagination
+    paginate_by = 50
 
     def get_object(self):
         vehicle = super().get_object()
@@ -226,20 +228,46 @@ class ManagerVehicleUpdateView(UpdateView):
         context = super().get_context_data(**kwargs)
 
         manager = self.request.user.managers
+        vehicle = self.object
 
         context["manager_enterprises"] = manager.enterprises.all()
 
         enterprises = manager.enterprises.all()
-        drivers = Driver.objects.filter(enterprise__in=enterprises).select_related(
-            "enterprise"
-        )
+        drivers = Driver.objects.filter(
+            enterprise__in=enterprises
+        ).select_related("enterprise")
 
         context["available_drivers"] = drivers
 
-        return context
+        # -----------------------
+        # ФИЛЬТР ПО ДАТАМ
+        # -----------------------
+        start = self.request.GET.get("start")
+        end = self.request.GET.get("end")
 
-    def form_valid(self, form):
-        return super().form_valid(form)
+        start_dt = parse_datetime(start) if start else None
+        end_dt = parse_datetime(end) if end else None
+        trips = VehicleTrip.objects.filter(vehicle=vehicle)
+
+        if start_dt:
+            trips = trips.filter(start_timestamp__gte=start_dt)
+
+        if end_dt:
+            trips = trips.filter(end_timestamp__lte=end_dt)
+
+        trips = trips.order_by("-start_timestamp")
+
+        paginator = Paginator(trips, self.paginate_by)
+        page_number = self.request.GET.get("page")
+        page_obj = paginator.get_page(page_number)
+
+        context["page_obj"] = page_obj
+        context["trips"] = page_obj
+
+        context["filter_start"] = start
+        context["filter_end"] = end
+
+        return context
 
     def get_success_url(self):
         return reverse("ui_vehicle_details", kwargs={"pk": self.object.pk})
@@ -494,53 +522,47 @@ class VehicleTripPointsRangeAPIView(generics.ListAPIView):
 
         manager = user.managers
         vehicle_id = self.kwargs.get("pk")
-        start = self.request.query_params.get("start")
-        if start:
-            start_dt = parse_datetime(start)
-            if start_dt:
-                qs = qs.filter(timestamp__gte=start_dt)
-
-        end = self.request.query_params.get("end")
-        if end:
-            end_dt = parse_datetime(end)
-            if end_dt:
-                qs = qs.filter(timestamp__lte=end_dt)
-
         if not vehicle_id:
             raise PermissionDenied("Не указан vehicle_id")
 
+        start = self.request.query_params.get("start")
+        end = self.request.query_params.get("end")
+
         start_dt = parse_datetime(start) if start else None
         end_dt = parse_datetime(end) if end else None
+
+        # --- поездки этого автомобиля и предприятий менеджера ---
         trips = VehicleTrip.objects.filter(
             vehicle_id=vehicle_id,
             vehicle__enterprise__in=manager.enterprises.all(),
         )
-
         if start_dt:
             trips = trips.filter(start_timestamp__gte=start_dt)
-
         if end_dt:
             trips = trips.filter(end_timestamp__lte=end_dt)
 
-        qs = (
-            VehicleTrackPoint.objects.filter(vehicle_id=vehicle_id)
-            .annotate(
-                trip_id=Subquery(
-                    trips.filter(
-                        start_timestamp__lte=OuterRef("timestamp"),
-                        end_timestamp__gte=OuterRef("timestamp"),
-                    ).values("id")[:1]
-                )
+        # --- точки треков ---
+        qs = VehicleTrackPoint.objects.filter(vehicle_id=vehicle_id).annotate(
+            trip_id=Subquery(
+                trips.filter(
+                    start_timestamp__lte=OuterRef("timestamp"),
+                    end_timestamp__gte=OuterRef("timestamp"),
+                ).values("id")[:1]
             )
-            .filter(trip_id__isnull=False)
-        )
+        ).filter(trip_id__isnull=False)
 
-        return qs
+        # --- фильтр по времени для точек (опционально) ---
+        if start_dt:
+            qs = qs.filter(timestamp__gte=start_dt)
+        if end_dt:
+            qs = qs.filter(timestamp__lte=end_dt)
+
+        return qs.order_by("timestamp")
 
 
 class VehicleTripsAPIView(generics.ListAPIView):
     serializer_class = VehicleTripSerializer
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [SessionAuthentication, JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
@@ -565,14 +587,12 @@ class VehicleTripsAPIView(generics.ListAPIView):
             vehicle_id=vehicle_id,
             vehicle__enterprise__in=manager.enterprises.all(),
         )
-
         if start_dt:
             trips = trips.filter(start_timestamp__gte=start_dt)
 
         if end_dt:
             trips = trips.filter(end_timestamp__lte=end_dt)
 
-        # --- Subquery для первой точки ---
         start_point_subquery = (
             VehicleTrackPoint.objects
             .filter(
@@ -584,7 +604,6 @@ class VehicleTripsAPIView(generics.ListAPIView):
             .values("id")[:1]
         )
 
-        # --- Subquery для последней точки ---
         end_point_subquery = (
             VehicleTrackPoint.objects
             .filter(
@@ -604,3 +623,35 @@ class VehicleTripsAPIView(generics.ListAPIView):
             )
             .order_by("-start_timestamp")
         )
+
+
+class VehicleTripPointsView(LoginRequiredMixin, View):
+    def get(self, request, vehicle_id):
+        trip_id = request.GET.get("trip_id")  # новый параметр
+        user = request.user
+        if not hasattr(user, "managers"):
+            return JsonResponse({"detail": "Нет доступа"}, status=403)
+        manager = user.managers
+
+        # Только поездка с указанным trip_id и доступная пользователю
+        try:
+            trip = VehicleTrip.objects.get(
+                id=trip_id,
+                vehicle_id=vehicle_id,
+                vehicle__enterprise__in=manager.enterprises.all()
+            )
+        except VehicleTrip.DoesNotExist:
+            return JsonResponse({"points": []})  # поездка не найдена / нет доступа
+
+        # Все точки, входящие в выбранную поездку
+        qs = VehicleTrackPoint.objects.filter(
+            vehicle_id=vehicle_id,
+            timestamp__gte=trip.start_timestamp,
+            timestamp__lte=trip.end_timestamp
+        ).order_by("timestamp")
+
+        data = [
+            {"lat": p.point.y, "lng": p.point.x, "timestamp": p.timestamp.isoformat()}
+            for p in qs
+        ]
+        return JsonResponse({"points": data})
