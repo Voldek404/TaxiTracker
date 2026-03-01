@@ -4,7 +4,9 @@ from django.core.paginator import Paginator
 from django.urls import reverse
 from django.contrib.auth.views import LogoutView
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.serializers.json import DjangoJSONEncoder
 from django.contrib.auth import login
+import csv
 from django.db.models import OuterRef, Subquery
 from django.views.generic import (
     ListView,
@@ -531,7 +533,6 @@ class VehicleTripPointsRangeAPIView(generics.ListAPIView):
         start_dt = parse_datetime(start) if start else None
         end_dt = parse_datetime(end) if end else None
 
-        # --- поездки этого автомобиля и предприятий менеджера ---
         trips = VehicleTrip.objects.filter(
             vehicle_id=vehicle_id,
             vehicle__enterprise__in=manager.enterprises.all(),
@@ -541,7 +542,6 @@ class VehicleTripPointsRangeAPIView(generics.ListAPIView):
         if end_dt:
             trips = trips.filter(end_timestamp__lte=end_dt)
 
-        # --- точки треков ---
         qs = VehicleTrackPoint.objects.filter(vehicle_id=vehicle_id).annotate(
             trip_id=Subquery(
                 trips.filter(
@@ -551,7 +551,6 @@ class VehicleTripPointsRangeAPIView(generics.ListAPIView):
             )
         ).filter(trip_id__isnull=False)
 
-        # --- фильтр по времени для точек (опционально) ---
         if start_dt:
             qs = qs.filter(timestamp__gte=start_dt)
         if end_dt:
@@ -627,13 +626,12 @@ class VehicleTripsAPIView(generics.ListAPIView):
 
 class VehicleTripPointsView(LoginRequiredMixin, View):
     def get(self, request, vehicle_id):
-        trip_id = request.GET.get("trip_id")  # новый параметр
+        trip_id = request.GET.get("trip_id")
         user = request.user
         if not hasattr(user, "managers"):
             return JsonResponse({"detail": "Нет доступа"}, status=403)
         manager = user.managers
 
-        # Только поездка с указанным trip_id и доступная пользователю
         try:
             trip = VehicleTrip.objects.get(
                 id=trip_id,
@@ -643,7 +641,6 @@ class VehicleTripPointsView(LoginRequiredMixin, View):
         except VehicleTrip.DoesNotExist:
             return JsonResponse({"points": []})  # поездка не найдена / нет доступа
 
-        # Все точки, входящие в выбранную поездку
         qs = VehicleTrackPoint.objects.filter(
             vehicle_id=vehicle_id,
             timestamp__gte=trip.start_timestamp,
@@ -655,3 +652,164 @@ class VehicleTripPointsView(LoginRequiredMixin, View):
             for p in qs
         ]
         return JsonResponse({"points": data})
+
+
+class EnterpriseExportView(View):
+
+    def get(self, request, enterprise_id):
+        format_type = request.GET.get("format", "csv")
+
+        enterprise = get_object_or_404(Enterprise, id=enterprise_id)
+
+        vehicles = (
+            Vehicle.objects
+            .filter(enterprise=enterprise)
+            .select_related("brand")
+            .prefetch_related("drivers")
+        )
+
+        if format_type == "json":
+            return self.export_json(vehicles, enterprise)
+
+        return self.export_csv(vehicles, enterprise)
+
+    def export_json(self, vehicles, enterprise):
+        data = []
+
+        for vehicle in vehicles:
+            data.append({
+                "production_date": vehicle.prod_date,
+                "purchase_date": vehicle.car_purchase_time,
+                "odometer": vehicle.odometer,
+                "price": vehicle.price,
+                "color": vehicle.color,
+                "plate_number": vehicle.plate_number,
+                "brand": vehicle.brand.product_name if vehicle.brand else None,
+                "enterprise": enterprise.name,
+                "drivers": [
+                    driver.full_name for driver in vehicle.drivers.all()
+                ],
+            })
+
+        payload = {
+            "enterprise": enterprise.name,
+            "vehicles": data
+        }
+
+        response = HttpResponse(
+            json.dumps(
+                payload,
+                indent=4,
+                ensure_ascii=False,
+                cls=DjangoJSONEncoder  # ← ВАЖНО
+            ),
+            content_type="application/json; charset=utf-8"
+        )
+
+        response["Content-Disposition"] = (
+            f'attachment; filename="enterprise_{enterprise.id}.json"'
+        )
+
+        return response
+
+    def export_csv(self, vehicles, enterprise):
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = (
+            f'attachment; filename="enterprise_{enterprise.id}.csv"'
+        )
+
+        writer = csv.writer(response)
+
+        writer.writerow([
+            "Дата изготовления",
+            "Дата покупки",
+            "Пробег, км",
+            "Цена, руб",
+            "Цвет",
+            "Номер",
+            "Марка",
+            "Предприятие",
+            "Водители",
+        ])
+
+        for vehicle in vehicles:
+            writer.writerow([
+                vehicle.prod_date,
+                vehicle.car_purchase_time,
+                vehicle.odometer,
+                vehicle.price,
+                vehicle.color,
+                vehicle.plate_number,
+                vehicle.brand.product_name if vehicle.brand else "",
+                enterprise.name,
+                ", ".join(
+                    [driver.full_name for driver in vehicle.drivers.all()]
+                ),
+            ])
+
+        return response
+
+class VehicleTripsExportView(View):
+
+    def get(self, request, vehicle_id):
+        format_type = request.GET.get("format", "csv")
+        start = request.GET.get("start")
+        end = request.GET.get("end")
+
+        vehicle = get_object_or_404(Vehicle, id=vehicle_id)
+
+        user = request.user
+        if not hasattr(user, "managers"):
+            return JsonResponse({"detail": "Нет доступа"}, status=403)
+        manager = user.managers
+
+        trips = VehicleTrip.objects.filter(vehicle=vehicle)
+        if start:
+            trips = trips.filter(start_timestamp__gte=start)
+        if end:
+            trips = trips.filter(end_timestamp__lte=end)
+
+        if format_type == "json":
+            return self.export_json(trips, vehicle)
+        return self.export_csv(trips, vehicle)
+
+    def export_json(self, trips, vehicle):
+        data = []
+        for trip in trips:
+            data.append({
+                "id": trip.id,
+                "start_timestamp": trip.start_timestamp,
+                "end_timestamp": trip.end_timestamp,
+                "vehicle_id": vehicle.id,
+                "vehicle_plate": vehicle.plate_number,
+            })
+
+        payload = {
+            "vehicle": vehicle.plate_number,
+            "trips": data
+        }
+
+        response = HttpResponse(
+            json.dumps(payload, indent=4, ensure_ascii=False, cls=DjangoJSONEncoder),
+            content_type="application/json; charset=utf-8"
+        )
+        response["Content-Disposition"] = f'attachment; filename="vehicle_{vehicle.id}_trips.json"'
+        return response
+
+    def export_csv(self, trips, vehicle):
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = f'attachment; filename="vehicle_{vehicle.id}_trips.csv"'
+
+        writer = csv.writer(response)
+        writer.writerow(["ID", "Start", "End", "Vehicle ID", "Vehicle Plate"])
+
+        for trip in trips:
+            writer.writerow([
+                trip.id,
+                trip.start_timestamp,
+                trip.end_timestamp,
+                vehicle.id,
+                vehicle.plate_number,
+            ])
+
+        return response

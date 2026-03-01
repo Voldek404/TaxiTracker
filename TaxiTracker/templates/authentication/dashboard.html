@@ -57,6 +57,16 @@
                             <div class="small mt-1 text-success d-none" id="tz-msg-{{ enterprise.id }}">
                                  Часовой пояс сохранён!
                             </div>
+                    </td>    <td onclick="event.stopPropagation();">
+                        <a href="{% url 'enterprise_export' enterprise.id %}?format=csv"
+                           class="btn btn-sm btn-primary mb-1">
+                            CSV
+                        </a>
+
+                        <a href="{% url 'enterprise_export' enterprise.id %}?format=json"
+                           class="btn btn-sm btn-secondary">
+                            JSON
+                        </a>
                     </td>
                 </tr>
                 {% endfor %}

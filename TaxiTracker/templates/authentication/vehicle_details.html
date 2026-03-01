@@ -210,6 +210,12 @@
         </tr>
         {% endfor %}
     </tbody>
+    <div class="mt-3">
+    <a href="{% url 'vehicle_trips_export' ui_vehicle_details.id %}?format=csv{% if filter_start %}&start={{ filter_start }}{% endif %}{% if filter_end %}&end={{ filter_end }}{% endif %}"
+       class="btn btn-primary btn-sm">Скачать CSV</a>
+    <a href="{% url 'vehicle_trips_export' ui_vehicle_details.id %}?format=json{% if filter_start %}&start={{ filter_start }}{% endif %}{% if filter_end %}&end={{ filter_end }}{% endif %}"
+       class="btn btn-secondary btn-sm">Скачать JSON</a>
+    </div>
 </table>
 
 <h4 class="mt-4">Карта поездок</h4>
