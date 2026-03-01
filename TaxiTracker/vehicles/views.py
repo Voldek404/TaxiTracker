@@ -5,6 +5,7 @@ from django.urls import reverse
 from django.contrib.auth.views import LogoutView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.serializers.json import DjangoJSONEncoder
+from django.core.exceptions import ValidationError
 from django.contrib.auth import login
 import csv
 from django.db.models import OuterRef, Subquery
@@ -27,6 +28,7 @@ from vehicles.models import (
     Manager,
     VehicleTrackPoint,
     VehicleTrip,
+    ENTERPRISE_TIMEZONES
 )
 from vehicles.serializers import (
     VehiclesSerializer,
@@ -48,7 +50,7 @@ from rest_framework.permissions import (
     IsAuthenticated,
 )
 from rest_framework.exceptions import PermissionDenied, APIException
-from django.shortcuts import redirect
+from django.shortcuts import render, get_object_or_404, redirect
 from rest_framework import status
 from rest_framework.pagination import PageNumberPagination
 from rest_framework_extensions.mixins import PaginateByMaxMixin
@@ -170,13 +172,16 @@ class ManagerVehicleDashboardView(ListView):
 
     def get_queryset(self):
         user = self.request.user
-        if hasattr(user, "managers"):
-            print("USER:", self.request.user, self.request.user.is_authenticated)
-            return Vehicle.objects.filter(
-                enterprise__in=user.managers.enterprises.all()
-            )
 
-        raise PermissionDenied("У вас нет прав на просмотр")
+        if not hasattr(user, "managers"):
+            raise PermissionDenied("У вас нет прав на просмотр")
+
+        enterprise_id = self.kwargs.get("pk")
+
+        if not user.managers.enterprises.filter(id=enterprise_id).exists():
+            raise PermissionDenied("Нет доступа к этому предприятию")
+
+        return Vehicle.objects.filter(enterprise_id=enterprise_id)
 
 
 class ManagerVehicleCreateView(CreateView):
@@ -813,3 +818,89 @@ class VehicleTripsExportView(View):
             ])
 
         return response
+
+class EnterpriseImportView(LoginRequiredMixin,View):
+
+
+    def post(self, request):
+        file = request.FILES.get('file')
+        if not file:
+            messages.error(request, "Файл не выбран")
+            return redirect('enterprise_detail')  # редирект на список предприятий
+
+        if file.name.endswith('.csv'):
+            return self.import_csv(file, request)
+        elif file.name.endswith('.json'):
+            return self.import_json(file, request)
+        else:
+            messages.error(request, "Неподдерживаемый формат файла. Используйте CSV или JSON")
+            return redirect('enterprise_detail')
+
+    def import_csv(self, file, request):
+        decoded_file = file.read().decode('utf-8').splitlines()
+        reader = csv.DictReader(decoded_file)
+        return self._import_rows(reader, request)
+
+    def import_json(self, file, request):
+        try:
+            data = json.load(file)
+        except json.JSONDecodeError:
+            messages.error(request, "Неверный JSON файл")
+            return redirect('enterprise_detail')
+
+        # JSON может быть в формате { "enterprise": {...} } или список [{...}, {...}]
+        if isinstance(data, dict) and 'enterprise' in data:
+            data_list = [data['enterprise']]
+        elif isinstance(data, list):
+            data_list = data
+        else:
+            messages.error(request, "Неверный формат JSON")
+            return redirect('enterprise_detail')
+
+        return self._import_rows(data_list, request)
+
+    def _import_rows(self, rows, request):
+
+        manager = getattr(request.user, 'managers', None)
+
+        count = 0
+        last_enterprise = None
+
+        for row in rows:
+            # row может быть dict или строка — убедимся, что это dict
+            if not isinstance(row, dict):
+                continue
+
+            name = row.get('name')
+            city = row.get('city')
+            timezone = row.get('timezone', 'UTC')
+
+            if not name or not city:
+                continue
+
+            if timezone not in dict(ENTERPRISE_TIMEZONES):
+                timezone = 'UTC'
+
+            try:
+                enterprise = Enterprise.objects.create(
+                    name=name,
+                    city=city,
+                    timezone=timezone
+                )
+                count += 1
+                last_enterprise = enterprise
+
+                # привязка к менеджеру
+                if manager:
+                    manager.enterprises.add(enterprise)
+
+            except ValidationError:
+                continue
+
+        if count:
+            messages.success(request, f"Импортировано {count} предприятий")
+            # редиректим на detail последнего импортированного предприятия
+            return redirect('enterprise_detail', pk=last_enterprise.id)
+        else:
+            messages.warning(request, "Не удалось импортировать ни одного предприятия")
+            return redirect('enterprise_detail')

@@ -19,7 +19,7 @@ from django.urls import path
 
 from vehicles.views import (VehiclesApiView, BrandsApiView, VehiclesDetailApiView,
                             DriversApiView, EnterprisesApiView, DriversDetailApiView, EnterprisesDetailApiView,
-                            ManagersApiView, ManagersDetailApiView, UserLoginView, UserLogoutView, ManagerDashboardView, ManagerVehicleDashboardView,  ManagerVehicleCreateView, VehiclesBulkDeleteView, ManagerVehicleUpdateView, EnterpriseTimezoneUpdateView, SetTimezoneView,VehicleTrackAPIView, VehicleTripPointsRangeAPIView, VehicleTripPointsView, EnterpriseExportView, VehicleTripsExportView)
+                            ManagersApiView, ManagersDetailApiView, UserLoginView, UserLogoutView, ManagerDashboardView, ManagerVehicleDashboardView,  ManagerVehicleCreateView, VehiclesBulkDeleteView, ManagerVehicleUpdateView, EnterpriseTimezoneUpdateView, SetTimezoneView,VehicleTrackAPIView, VehicleTripPointsRangeAPIView, VehicleTripPointsView, EnterpriseExportView, VehicleTripsExportView, EnterpriseImportView)
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenVerifyView
 
 urlpatterns = [
@@ -52,6 +52,7 @@ urlpatterns = [
 
     path('fleet/<int:enterprise_id>/export/', EnterpriseExportView.as_view(), name='enterprise_export'),
     path('vehicle/<int:vehicle_id>/export/', VehicleTripsExportView.as_view(), name='vehicle_trips_export'),
+    path('enterprise/import/', EnterpriseImportView.as_view(), name='enterprise_import'),
     # path('api/v1/vehicle_trips/<int:pk>/', VehicleTripsAPIView.as_view(), name='vehicle-trips'),
 ]
 

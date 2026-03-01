@@ -57,19 +57,34 @@
                             <div class="small mt-1 text-success d-none" id="tz-msg-{{ enterprise.id }}">
                                  Часовой пояс сохранён!
                             </div>
-                    </td>    <td onclick="event.stopPropagation();">
-                        <a href="{% url 'enterprise_export' enterprise.id %}?format=csv"
-                           class="btn btn-sm btn-primary mb-1">
-                            CSV
-                        </a>
+                    </td>
+                    <td onclick="event.stopPropagation();">
+                        <!-- Экспорт CSV/JSON -->
+                        <div class="mb-2">
+                            <a href="{% url 'enterprise_export' enterprise.id %}?format=csv"
+                               class="btn btn-sm btn-primary mb-1 d-block">
+                                Export CSV
+                            </a>
 
-                        <a href="{% url 'enterprise_export' enterprise.id %}?format=json"
-                           class="btn btn-sm btn-secondary">
-                            JSON
-                        </a>
+                            <a href="{% url 'enterprise_export' enterprise.id %}?format=json"
+                               class="btn btn-sm btn-secondary mb-1 d-block">
+                                Export JSON
+                            </a>
+                        </div>
+
+                        <!-- Импорт CSV/JSON -->
+
                     </td>
                 </tr>
                 {% endfor %}
+            <div>
+                            <form method="post" action="{% url 'enterprise_import' %}"
+                                  enctype="multipart/form-data">
+                                {% csrf_token %}
+                                <input type="file" name="file" accept=".csv,.json" class="form-control form-control-sm mb-1">
+                                <button type="submit" class="btn btn-sm btn-success w-100">Import</button>
+                            </form>
+            </div>
             </tbody>
     </table>
 </div>
