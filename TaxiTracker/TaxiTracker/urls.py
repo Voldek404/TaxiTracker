@@ -14,46 +14,130 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+
 from django.contrib import admin
 from django.urls import path
 
-from vehicles.views import (VehiclesApiView, BrandsApiView, VehiclesDetailApiView,
-                            DriversApiView, EnterprisesApiView, DriversDetailApiView, EnterprisesDetailApiView,
-                            ManagersApiView, ManagersDetailApiView, UserLoginView, UserLogoutView, ManagerDashboardView, ManagerVehicleDashboardView,  ManagerVehicleCreateView, VehiclesBulkDeleteView, ManagerVehicleUpdateView, EnterpriseTimezoneUpdateView, SetTimezoneView,VehicleTrackAPIView, VehicleTripPointsRangeAPIView, VehicleTripPointsView, EnterpriseExportView, VehicleTripsExportView, EnterpriseImportView)
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenVerifyView
+from vehicles.views import (
+    VehiclesApiView,
+    BrandsApiView,
+    VehiclesDetailApiView,
+    DriversApiView,
+    EnterprisesApiView,
+    DriversDetailApiView,
+    EnterprisesDetailApiView,
+    ManagersApiView,
+    ManagersDetailApiView,
+    UserLoginView,
+    UserLogoutView,
+    ManagerDashboardView,
+    ManagerVehicleDashboardView,
+    ManagerVehicleCreateView,
+    VehiclesBulkDeleteView,
+    ManagerVehicleUpdateView,
+    EnterpriseTimezoneUpdateView,
+    SetTimezoneView,
+    VehicleTrackAPIView,
+    VehicleTripPointsRangeAPIView,
+    VehicleTripPointsView,
+    EnterpriseExportView,
+    VehicleTripsExportView,
+    EnterpriseImportView,
+    VehicleImportView,
+    VehicleTripImportView,
+)
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+    TokenVerifyView,
+)
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('login/', UserLoginView.as_view(), name='login'),
-    path('logout/', UserLogoutView.as_view(), name='logout'),
-    path('dashboard/', ManagerDashboardView.as_view(), name='enterprise_detail'),
-    path('vehicles_dashboard/<int:pk>/', ManagerVehicleDashboardView.as_view(), name='vehicles'),
-    path('vehicle_details/<int:pk>/', ManagerVehicleUpdateView.as_view(), name='ui_vehicle_details'),
-    path('vehicle_create/', ManagerVehicleCreateView.as_view(), name='vehicle_create'),
-    path('vehicles_bulk_delete/', VehiclesBulkDeleteView.as_view(), name='vehicles_bulk_delete'),
-    path("enterprise/<int:pk>/timezone/",EnterpriseTimezoneUpdateView.as_view(),name="update_enterprise_timezone"),
-    path('set-timezone/', SetTimezoneView.as_view(), name='set_timezone'),
-    path("vehicle_trips/<int:vehicle_id>/points_dashboard/",VehicleTripPointsView.as_view(),name="vehicle_trip_points"),
-
-    path('api/v1/brands/<int:page>/', BrandsApiView.as_view()),
-    path('api/v1/vehicles/', VehiclesApiView.as_view()),
-    path('api/v1/drivers/<int:page>/', DriversApiView.as_view()),
-    path('api/v1/enterprises/<int:page>/', EnterprisesApiView.as_view()),
-    path('api/v1/managers/<int:page>/', ManagersApiView.as_view()),
-    path('api/v1/drivers/<int:pk>/', DriversDetailApiView.as_view(), name='driver_detail'),
-    path('api/v1/enterprises/<int:pk>/', EnterprisesDetailApiView.as_view(), name='enterprise_detail'),
-    path('api/v1/vehicles/<int:pk>/', VehiclesDetailApiView.as_view(), name='vehicle_detail'),
-    path('api/v1/managers/<int:pk>/', ManagersDetailApiView.as_view(), name='manager_detail'),
-    path('api/v1/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/v1/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('api/v1/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
-    path('api/v1/vehicle-track/', VehicleTrackAPIView.as_view(), name='vehicle-track'),
-    path('api/v1/vehicle_trips/<int:pk>/points/', VehicleTripPointsRangeAPIView.as_view(), name='vehicle-trips-points'),
-
-    path('fleet/<int:enterprise_id>/export/', EnterpriseExportView.as_view(), name='enterprise_export'),
-    path('vehicle/<int:vehicle_id>/export/', VehicleTripsExportView.as_view(), name='vehicle_trips_export'),
-    path('enterprise/import/', EnterpriseImportView.as_view(), name='enterprise_import'),
+    path("admin/", admin.site.urls),
+    path("login/", UserLoginView.as_view(), name="login"),
+    path("logout/", UserLogoutView.as_view(), name="logout"),
+    path("dashboard/", ManagerDashboardView.as_view(), name="enterprise_details"),
+    path(
+        "vehicles_dashboard/<int:pk>/",
+        ManagerVehicleDashboardView.as_view(),
+        name="vehicles",
+    ),
+    path(
+        "vehicle_details/<int:pk>/",
+        ManagerVehicleUpdateView.as_view(),
+        name="ui_vehicle_details",
+    ),
+    path("vehicle_create/", ManagerVehicleCreateView.as_view(), name="vehicle_create"),
+    path(
+        "vehicles_bulk_delete/",
+        VehiclesBulkDeleteView.as_view(),
+        name="vehicles_bulk_delete",
+    ),
+    path(
+        "enterprise/<int:pk>/timezone/",
+        EnterpriseTimezoneUpdateView.as_view(),
+        name="update_enterprise_timezone",
+    ),
+    path("set-timezone/", SetTimezoneView.as_view(), name="set_timezone"),
+    path(
+        "vehicle_trips/<int:vehicle_id>/points_dashboard/",
+        VehicleTripPointsView.as_view(),
+        name="vehicle_trip_points",
+    ),
+    path("api/v1/brands/<int:page>/", BrandsApiView.as_view()),
+    path("api/v1/vehicles/", VehiclesApiView.as_view()),
+    path("api/v1/drivers/<int:page>/", DriversApiView.as_view()),
+    path("api/v1/enterprises/<int:page>/", EnterprisesApiView.as_view()),
+    path("api/v1/managers/<int:page>/", ManagersApiView.as_view()),
+    path(
+        "api/v1/drivers/<int:pk>/", DriversDetailApiView.as_view(), name="driver_detail"
+    ),
+    path(
+        "api/v1/enterprises/<int:pk>/",
+        EnterprisesDetailApiView.as_view(),
+        name="enterprise_detail",
+    ),
+    path(
+        "api/v1/vehicles/<int:pk>/",
+        VehiclesDetailApiView.as_view(),
+        name="vehicle_detail",
+    ),
+    path(
+        "api/v1/managers/<int:pk>/",
+        ManagersDetailApiView.as_view(),
+        name="manager_detail",
+    ),
+    path("api/v1/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("api/v1/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path("api/v1/token/verify/", TokenVerifyView.as_view(), name="token_verify"),
+    path("api/v1/vehicle-track/", VehicleTrackAPIView.as_view(), name="vehicle-track"),
+    path(
+        "api/v1/vehicle_trips/<int:pk>/points/",
+        VehicleTripPointsRangeAPIView.as_view(),
+        name="vehicle-trips-points",
+    ),
+    path(
+        "fleet/<int:enterprise_id>/export/",
+        EnterpriseExportView.as_view(),
+        name="enterprise_export",
+    ),
+    path(
+        "vehicle/<int:vehicle_id>/export/",
+        VehicleTripsExportView.as_view(),
+        name="vehicle_trips_export",
+    ),
+    path(
+        "enterprise/import/", EnterpriseImportView.as_view(), name="enterprise_import"
+    ),
+    path(
+        "vehicles_dashboard/<int:pk>/import/",
+        VehicleImportView.as_view(),
+        name="vehicles_import",
+    ),
+    path(
+        "vehicle/<int:pk>/import-trips/",
+        VehicleTripImportView.as_view(),
+        name="vehicle_trips_import",
+    ),
     # path('api/v1/vehicle_trips/<int:pk>/', VehicleTripsAPIView.as_view(), name='vehicle-trips'),
 ]
-
-

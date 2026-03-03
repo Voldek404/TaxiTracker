@@ -160,8 +160,28 @@
             <a href="{% url 'vehicles' ui_vehicle_details.enterprise.id %}" class="btn btn-secondary">Назад к списку</a>
         </div>
     </form>
-    <hr class="mt-5">
 
+<hr class="mt-5">
+<h4>Импорт поездок</h4>
+
+<form method="post"
+      action="{% url 'vehicle_trips_import' ui_vehicle_details.id %}"
+      enctype="multipart/form-data"
+      class="mb-4">
+
+    {% csrf_token %}
+
+    <input type="file"
+           name="file"
+           accept=".csv,.json"
+           class="form-control mb-2"
+           required>
+
+    <button type="submit"
+            class="btn btn-success btn-sm">
+        Импорт поездок
+    </button>
+</form>
 <h3>Поездки автомобиля</h3>
 
 <form method="get" class="row g-3 mb-4">
@@ -326,7 +346,19 @@ document.addEventListener('DOMContentLoaded', () => {
                         return resp.json();
                     })
                     .then(data => {
-                        const latlngs = data.points.map(p => [p.lat, p.lng]);
+                        let latlngs = [];
+
+                        if (data.results && data.results.length) {
+                            // GeoJSON FeatureCollection
+                            latlngs = data.results.map(f => {
+                                const [lng, lat] = f.geometry.coordinates;
+                                return [lat, lng];
+                            });
+                        } else if (data.points && data.points.length) {
+                            // старый формат points: [{lat, lng, timestamp}, ...]
+                            latlngs = data.points.map(p => [p.lat, p.lng]);
+                        }
+
                         if (!latlngs.length) return;
 
                         const polyline = L.polyline(latlngs, {

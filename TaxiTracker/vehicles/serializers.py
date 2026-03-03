@@ -169,6 +169,15 @@ class VehicleTrackPointGeoSerializer(serializers.Serializer):
         timestamp_formatted = instance.timestamp.astimezone(
             ZoneInfo(tz_name)
         ).isoformat()
+        trip = getattr(instance, "trip", None)
+        if trip is None:
+            trip = VehicleTrip.objects.filter(
+                vehicle=instance.vehicle,
+                start_timestamp__lte=instance.timestamp,
+                end_timestamp__gte=instance.timestamp,
+            ).first()
+
+        trip_id = trip.id if trip else None
 
         feature_data = {
             "type": "Feature",
@@ -183,6 +192,7 @@ class VehicleTrackPointGeoSerializer(serializers.Serializer):
         }
 
         return json.loads(json.dumps(feature_data, ensure_ascii=False))
+
 
 class VehicleTripSerializer(serializers.ModelSerializer):
     start_point_id = serializers.IntegerField(read_only=True)

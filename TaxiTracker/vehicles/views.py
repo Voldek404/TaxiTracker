@@ -28,7 +28,7 @@ from vehicles.models import (
     Manager,
     VehicleTrackPoint,
     VehicleTrip,
-    ENTERPRISE_TIMEZONES
+    ENTERPRISE_TIMEZONES,
 )
 from vehicles.serializers import (
     VehiclesSerializer,
@@ -64,6 +64,12 @@ from rest_framework.renderers import JSONRenderer
 from django.http import HttpResponse
 
 from vehicles.serializers import VehicleTripSerializer
+from vehicles.services.geocoding import (
+    geocode_address,
+    build_route,
+    interpolate_route,
+)
+from django.contrib.gis.geos import Point as GEOSPoint
 
 
 class MyPagination(PageNumberPagination):
@@ -170,6 +176,11 @@ class ManagerVehicleDashboardView(ListView):
     paginate_by = 100
     context_object_name = "vehicles"
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["enterprise_id"] = self.kwargs.get("pk")
+        return context
+
     def get_queryset(self):
         user = self.request.user
 
@@ -240,9 +251,9 @@ class ManagerVehicleUpdateView(UpdateView):
         context["manager_enterprises"] = manager.enterprises.all()
 
         enterprises = manager.enterprises.all()
-        drivers = Driver.objects.filter(
-            enterprise__in=enterprises
-        ).select_related("enterprise")
+        drivers = Driver.objects.filter(enterprise__in=enterprises).select_related(
+            "enterprise"
+        )
 
         context["available_drivers"] = drivers
 
@@ -547,14 +558,18 @@ class VehicleTripPointsRangeAPIView(generics.ListAPIView):
         if end_dt:
             trips = trips.filter(end_timestamp__lte=end_dt)
 
-        qs = VehicleTrackPoint.objects.filter(vehicle_id=vehicle_id).annotate(
-            trip_id=Subquery(
-                trips.filter(
-                    start_timestamp__lte=OuterRef("timestamp"),
-                    end_timestamp__gte=OuterRef("timestamp"),
-                ).values("id")[:1]
+        qs = (
+            VehicleTrackPoint.objects.filter(vehicle_id=vehicle_id)
+            .annotate(
+                trip_id=Subquery(
+                    trips.filter(
+                        start_timestamp__lte=OuterRef("timestamp"),
+                        end_timestamp__gte=OuterRef("timestamp"),
+                    ).values("id")[:1]
+                )
             )
-        ).filter(trip_id__isnull=False)
+            .filter(trip_id__isnull=False)
+        )
 
         if start_dt:
             qs = qs.filter(timestamp__gte=start_dt)
@@ -598,8 +613,7 @@ class VehicleTripsAPIView(generics.ListAPIView):
             trips = trips.filter(end_timestamp__lte=end_dt)
 
         start_point_subquery = (
-            VehicleTrackPoint.objects
-            .filter(
+            VehicleTrackPoint.objects.filter(
                 vehicle=OuterRef("vehicle"),
                 timestamp__gte=OuterRef("start_timestamp"),
                 timestamp__lte=OuterRef("end_timestamp"),
@@ -609,8 +623,7 @@ class VehicleTripsAPIView(generics.ListAPIView):
         )
 
         end_point_subquery = (
-            VehicleTrackPoint.objects
-            .filter(
+            VehicleTrackPoint.objects.filter(
                 vehicle=OuterRef("vehicle"),
                 timestamp__gte=OuterRef("start_timestamp"),
                 timestamp__lte=OuterRef("end_timestamp"),
@@ -619,14 +632,10 @@ class VehicleTripsAPIView(generics.ListAPIView):
             .values("id")[:1]
         )
 
-        return (
-            trips
-            .annotate(
-                start_point_id=Subquery(start_point_subquery),
-                end_point_id=Subquery(end_point_subquery),
-            )
-            .order_by("-start_timestamp")
-        )
+        return trips.annotate(
+            start_point_id=Subquery(start_point_subquery),
+            end_point_id=Subquery(end_point_subquery),
+        ).order_by("-start_timestamp")
 
 
 class VehicleTripPointsView(LoginRequiredMixin, View):
@@ -641,7 +650,7 @@ class VehicleTripPointsView(LoginRequiredMixin, View):
             trip = VehicleTrip.objects.get(
                 id=trip_id,
                 vehicle_id=vehicle_id,
-                vehicle__enterprise__in=manager.enterprises.all()
+                vehicle__enterprise__in=manager.enterprises.all(),
             )
         except VehicleTrip.DoesNotExist:
             return JsonResponse({"points": []})  # поездка не найдена / нет доступа
@@ -649,7 +658,7 @@ class VehicleTripPointsView(LoginRequiredMixin, View):
         qs = VehicleTrackPoint.objects.filter(
             vehicle_id=vehicle_id,
             timestamp__gte=trip.start_timestamp,
-            timestamp__lte=trip.end_timestamp
+            timestamp__lte=trip.end_timestamp,
         ).order_by("timestamp")
 
         data = [
@@ -667,8 +676,7 @@ class EnterpriseExportView(View):
         enterprise = get_object_or_404(Enterprise, id=enterprise_id)
 
         vehicles = (
-            Vehicle.objects
-            .filter(enterprise=enterprise)
+            Vehicle.objects.filter(enterprise=enterprise)
             .select_related("brand")
             .prefetch_related("drivers")
         )
@@ -682,33 +690,25 @@ class EnterpriseExportView(View):
         data = []
 
         for vehicle in vehicles:
-            data.append({
-                "production_date": vehicle.prod_date,
-                "purchase_date": vehicle.car_purchase_time,
-                "odometer": vehicle.odometer,
-                "price": vehicle.price,
-                "color": vehicle.color,
-                "plate_number": vehicle.plate_number,
-                "brand": vehicle.brand.product_name if vehicle.brand else None,
-                "enterprise": enterprise.name,
-                "drivers": [
-                    driver.full_name for driver in vehicle.drivers.all()
-                ],
-            })
+            data.append(
+                {
+                    "production_date": vehicle.prod_date,
+                    "purchase_date": vehicle.car_purchase_time,
+                    "odometer": vehicle.odometer,
+                    "price": vehicle.price,
+                    "color": vehicle.color,
+                    "plate_number": vehicle.plate_number,
+                    "brand": vehicle.brand.product_name if vehicle.brand else None,
+                    "enterprise": enterprise.name,
+                    "drivers": [driver.full_name for driver in vehicle.drivers.all()],
+                }
+            )
 
-        payload = {
-            "enterprise": enterprise.name,
-            "vehicles": data
-        }
+        payload = {"enterprise": enterprise.name, "vehicles": data}
 
         response = HttpResponse(
-            json.dumps(
-                payload,
-                indent=4,
-                ensure_ascii=False,
-                cls=DjangoJSONEncoder  # ← ВАЖНО
-            ),
-            content_type="application/json; charset=utf-8"
+            json.dumps(payload, indent=4, ensure_ascii=False, cls=DjangoJSONEncoder),
+            content_type="application/json; charset=utf-8",
         )
 
         response["Content-Disposition"] = (
@@ -718,41 +718,46 @@ class EnterpriseExportView(View):
         return response
 
     def export_csv(self, vehicles, enterprise):
-        response = HttpResponse(content_type="text/csv")
+        # Используем utf-8-sig для BOM, чтобы Excel понял кириллицу
+        response = HttpResponse(content_type="text/csv; charset=utf-8-sig")
         response["Content-Disposition"] = (
             f'attachment; filename="enterprise_{enterprise.id}.csv"'
         )
 
-        writer = csv.writer(response)
+        writer = csv.writer(response, lineterminator="\n")
 
-        writer.writerow([
-            "Дата изготовления",
-            "Дата покупки",
-            "Пробег, км",
-            "Цена, руб",
-            "Цвет",
-            "Номер",
-            "Марка",
-            "Предприятие",
-            "Водители",
-        ])
+        # Заголовки
+        writer.writerow(
+            [
+                "Дата изготовления",
+                "Дата покупки",
+                "Пробег, км",
+                "Цена, руб",
+                "Цвет",
+                "Номер",
+                "Марка",
+                "Предприятие",
+                "Водители",
+            ]
+        )
 
         for vehicle in vehicles:
-            writer.writerow([
-                vehicle.prod_date,
-                vehicle.car_purchase_time,
-                vehicle.odometer,
-                vehicle.price,
-                vehicle.color,
-                vehicle.plate_number,
-                vehicle.brand.product_name if vehicle.brand else "",
-                enterprise.name,
-                ", ".join(
-                    [driver.full_name for driver in vehicle.drivers.all()]
-                ),
-            ])
+            writer.writerow(
+                [
+                    vehicle.prod_date,
+                    vehicle.car_purchase_time,
+                    vehicle.odometer,
+                    vehicle.price,
+                    vehicle.color,
+                    vehicle.plate_number,
+                    vehicle.brand.product_name if vehicle.brand else "",
+                    enterprise.name,
+                    ", ".join([driver.full_name for driver in vehicle.drivers.all()]),
+                ]
+            )
 
         return response
+
 
 class VehicleTripsExportView(View):
 
@@ -781,63 +786,70 @@ class VehicleTripsExportView(View):
     def export_json(self, trips, vehicle):
         data = []
         for trip in trips:
-            data.append({
-                "id": trip.id,
-                "start_timestamp": trip.start_timestamp,
-                "end_timestamp": trip.end_timestamp,
-                "vehicle_id": vehicle.id,
-                "vehicle_plate": vehicle.plate_number,
-            })
+            data.append(
+                {
+                    "id": trip.id,
+                    "start_timestamp": trip.start_timestamp,
+                    "end_timestamp": trip.end_timestamp,
+                    "vehicle_id": vehicle.id,
+                    "vehicle_plate": vehicle.plate_number,
+                }
+            )
 
-        payload = {
-            "vehicle": vehicle.plate_number,
-            "trips": data
-        }
+        payload = {"vehicle": vehicle.plate_number, "trips": data}
 
         response = HttpResponse(
             json.dumps(payload, indent=4, ensure_ascii=False, cls=DjangoJSONEncoder),
-            content_type="application/json; charset=utf-8"
+            content_type="application/json; charset=utf-8",
         )
-        response["Content-Disposition"] = f'attachment; filename="vehicle_{vehicle.id}_trips.json"'
+        response["Content-Disposition"] = (
+            f'attachment; filename="vehicle_{vehicle.id}_trips.json"'
+        )
         return response
 
     def export_csv(self, trips, vehicle):
-        response = HttpResponse(content_type="text/csv")
-        response["Content-Disposition"] = f'attachment; filename="vehicle_{vehicle.id}_trips.csv"'
+        response = HttpResponse(content_type="text/csv; charset=utf-8")
+        response["Content-Disposition"] = (
+            f'attachment; filename="vehicle_{vehicle.id}_trips.csv"'
+        )
 
         writer = csv.writer(response)
         writer.writerow(["ID", "Start", "End", "Vehicle ID", "Vehicle Plate"])
 
         for trip in trips:
-            writer.writerow([
-                trip.id,
-                trip.start_timestamp,
-                trip.end_timestamp,
-                vehicle.id,
-                vehicle.plate_number,
-            ])
+            writer.writerow(
+                [
+                    trip.id,
+                    trip.start_timestamp,
+                    trip.end_timestamp,
+                    vehicle.id,
+                    vehicle.plate_number,
+                ]
+            )
 
         return response
 
-class EnterpriseImportView(LoginRequiredMixin,View):
 
+class EnterpriseImportView(LoginRequiredMixin, View):
 
     def post(self, request):
-        file = request.FILES.get('file')
+        file = request.FILES.get("file")
         if not file:
             messages.error(request, "Файл не выбран")
-            return redirect('enterprise_detail')  # редирект на список предприятий
+            return redirect("enterprise_details")  # редирект на список предприятий
 
-        if file.name.endswith('.csv'):
+        if file.name.endswith(".csv"):
             return self.import_csv(file, request)
-        elif file.name.endswith('.json'):
+        elif file.name.endswith(".json"):
             return self.import_json(file, request)
         else:
-            messages.error(request, "Неподдерживаемый формат файла. Используйте CSV или JSON")
-            return redirect('enterprise_detail')
+            messages.error(
+                request, "Неподдерживаемый формат файла. Используйте CSV или JSON"
+            )
+            return redirect("enterprise_details")
 
     def import_csv(self, file, request):
-        decoded_file = file.read().decode('utf-8').splitlines()
+        decoded_file = file.read().decode("utf-8").splitlines()
         reader = csv.DictReader(decoded_file)
         return self._import_rows(reader, request)
 
@@ -846,51 +858,43 @@ class EnterpriseImportView(LoginRequiredMixin,View):
             data = json.load(file)
         except json.JSONDecodeError:
             messages.error(request, "Неверный JSON файл")
-            return redirect('enterprise_detail')
+            return redirect("enterprise_details")
 
-        # JSON может быть в формате { "enterprise": {...} } или список [{...}, {...}]
-        if isinstance(data, dict) and 'enterprise' in data:
-            data_list = [data['enterprise']]
+        if isinstance(data, dict) and "enterprise" in data:
+            data_list = [data["enterprise"]]
         elif isinstance(data, list):
             data_list = data
         else:
             messages.error(request, "Неверный формат JSON")
-            return redirect('enterprise_detail')
+            return redirect("enterprise_details")
 
         return self._import_rows(data_list, request)
 
     def _import_rows(self, rows, request):
 
-        manager = getattr(request.user, 'managers', None)
+        manager = getattr(request.user, "managers", None)
 
         count = 0
-        last_enterprise = None
 
         for row in rows:
-            # row может быть dict или строка — убедимся, что это dict
             if not isinstance(row, dict):
                 continue
 
-            name = row.get('name')
-            city = row.get('city')
-            timezone = row.get('timezone', 'UTC')
+            name = row.get("name")
+            city = row.get("city")
+            timezone = row.get("timezone", "UTC")
 
             if not name or not city:
                 continue
 
             if timezone not in dict(ENTERPRISE_TIMEZONES):
-                timezone = 'UTC'
+                timezone = "UTC"
 
             try:
                 enterprise = Enterprise.objects.create(
-                    name=name,
-                    city=city,
-                    timezone=timezone
+                    name=name, city=city, timezone=timezone
                 )
                 count += 1
-                last_enterprise = enterprise
-
-                # привязка к менеджеру
                 if manager:
                     manager.enterprises.add(enterprise)
 
@@ -899,8 +903,169 @@ class EnterpriseImportView(LoginRequiredMixin,View):
 
         if count:
             messages.success(request, f"Импортировано {count} предприятий")
-            # редиректим на detail последнего импортированного предприятия
-            return redirect('enterprise_detail', pk=last_enterprise.id)
+            return redirect("enterprise_details")
         else:
             messages.warning(request, "Не удалось импортировать ни одного предприятия")
-            return redirect('enterprise_detail')
+            return redirect("enterprise_details")
+
+
+class VehicleImportView(View):
+    def post(self, request, pk):
+        file = request.FILES.get("file")
+        if not file:
+            messages.error(request, "Выберите файл для импорта")
+            return redirect("vehicles", pk=pk)
+
+        if file.name.endswith(".csv"):
+            return self.import_csv(file, request, pk)
+        elif file.name.endswith(".json"):
+            return self.import_json(file, request, pk)
+        else:
+            messages.error(
+                request, "Неподдерживаемый формат файла. Используйте CSV или JSON"
+            )
+            return redirect("vehicles", pk=pk)
+
+    def import_csv(self, file, request, pk):
+        decoded_file = file.read().decode("utf-8").splitlines()
+        reader = csv.DictReader(decoded_file)
+        return self._import_rows(reader, request, pk)
+
+    def import_json(self, file, request, pk):
+        try:
+            data = json.load(file)
+        except json.JSONDecodeError:
+            messages.error(request, "Неверный JSON файл")
+            return redirect("vehicles", pk=pk)
+        if isinstance(data, dict) and "vehicle" in data:
+            data_list = [data["vehicle"]]
+        elif isinstance(data, list):
+            data_list = data
+        else:
+            messages.error(request, "Неверный формат JSON")
+            return redirect("vehicles", pk=pk)
+
+        return self._import_rows(data_list, request, pk)
+
+    def _import_rows(self, rows, request, enterprise_id):
+        count = 0
+
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+
+            brand_name = row.get("brand")
+            if not brand_name:
+                continue
+            try:
+                brand = Brand.objects.get(product_name=brand_name)
+            except Brand.DoesNotExist:
+                messages.warning(
+                    request, f"Бренд '{brand_name}' не найден. Автомобиль пропущен."
+                )
+                continue
+
+            try:
+                Vehicle.objects.create(
+                    prod_date=row.get("prod_date"),
+                    car_purchase_time=row.get("car_purchase_time"),
+                    odometer=row.get("odometer", 0),
+                    price=row.get("price", 0),
+                    color=row.get("color"),
+                    plate_number=row.get("plate_number"),
+                    brand=brand,  # ← теперь это инстанс
+                    enterprise_id=enterprise_id,
+                )
+                count += 1
+
+            except Exception:
+                continue
+
+        if count:
+            messages.success(request, f"Импортировано {count} автомобилей")
+        else:
+            messages.warning(request, "Не удалось импортировать ни одного автомобиля")
+
+        return redirect("vehicles", pk=enterprise_id)
+
+
+class VehicleTripImportView(View):
+    def post(self, request, pk):
+        vehicle = get_object_or_404(Vehicle, pk=pk)
+        file = request.FILES.get("file")
+        if not file:
+            messages.error(request, "Файл не выбран")
+            return redirect("ui_vehicle_details", pk=vehicle.id)
+
+        try:
+            # Загружаем данные
+            if file.name.endswith(".json"):
+                rows = json.load(file)
+            elif file.name.endswith(".csv"):
+                decoded = file.read().decode("utf-8").splitlines()
+                rows = list(csv.DictReader(decoded))
+            else:
+                messages.error(request, "Неподдерживаемый формат")
+                return redirect("ui_vehicle_details", pk=vehicle.id)
+
+            created = 0
+
+            for row in rows:
+                points_data = row.get("points") or []
+
+                # Для CSV, где каждая строка — точка
+                if not points_data and ("lat" in row or "address" in row):
+                    points_data = [row]
+
+                processed_points = []
+
+                for p in points_data:
+                    timestamp = parse_datetime(p.get("timestamp"))
+                    if not timestamp:
+                        continue
+
+                    lat = p.get("lat")
+                    lng = p.get("lng")
+
+                    if (lat is None or lng is None) and p.get("address"):
+                        lat, lng = geocode_address(p["address"])
+                        if lat is None or lng is None:
+                            continue
+
+                    if lat is None or lng is None:
+                        continue
+
+                    processed_points.append(
+                        {"lat": float(lat), "lng": float(lng), "timestamp": timestamp}
+                    )
+
+                if not processed_points:
+                    messages.warning(request, "Пропущена поездка без точек")
+                    continue
+
+                processed_points.sort(key=lambda x: x["timestamp"])
+
+                trip = VehicleTrip.objects.create(
+                    vehicle=vehicle,
+                    start_timestamp=processed_points[0]["timestamp"],
+                    end_timestamp=processed_points[-1]["timestamp"],
+                )
+
+                track_points = [
+                    VehicleTrackPoint(
+                        vehicle=vehicle,
+                        point=GEOSPoint(p["lng"], p["lat"], srid=4326),
+                        timestamp=p["timestamp"],
+                    )
+                    for p in processed_points
+                ]
+                VehicleTrackPoint.objects.bulk_create(track_points)
+
+                created += 1
+
+            messages.success(request, f"Импортировано поездок: {created}")
+
+        except Exception as e:
+            messages.error(request, f"Ошибка импорта: {str(e)}")
+
+        return redirect("ui_vehicle_details", pk=vehicle.id)

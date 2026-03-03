@@ -95,38 +95,25 @@ class Command(BaseCommand):
             f"Старт трекинга авто {vehicle.id} ({vehicle.plate_number})"
         ))
 
-        while traveled < target_distance:
-            angle = random.uniform(0, 2 * 3.1415)
-            distance = random.uniform(800, 3000)
-            dlat = (distance / 111_320) * math.cos(angle)
-            dlon = (distance / 111_320) * math.sin(angle)
-            dest_lat = current_lat + dlat
-            dest_lon = current_lon + dlon
-            pt = Point(dest_lon, dest_lat)
-            if not moscow_polygon.contains(pt):
-                continue
+        angle = random.uniform(0, 2 * math.pi)
+        dlat = (target_distance / 111_320) * math.cos(angle)
+        dlon = (target_distance / (111_320 * math.cos(math.radians(current_lat)))) * math.sin(angle)
+        dest_lat = current_lat + dlat
+        dest_lon = current_lon + dlon
 
-            try:
-                route = self.graphhopper_route(start=(current_lat, current_lon),
-                                               end=(dest_lat, dest_lon))
-            except Exception as e:
-                self.stderr.write(f"Ошибка маршрута: {e}")
-                continue
+        # 2. Строим один маршрут через GraphHopper до этой точки
+        route = self.graphhopper_route(start=(current_lat, current_lon), end=(dest_lat, dest_lon))
 
-            interpolated = self.interpolate_route(route, opts["step"])
+        # 3. Интерполируем точки на всём маршруте
+        interpolated = self.interpolate_route(route, step=opts["step"])
 
-            for lon, lat in interpolated:
-                VehicleTrackPoint.objects.create(
-                    vehicle=vehicle,
-                    point=GEOSPoint(lon, lat, srid=4326),
-                    timestamp=timezone.now(),
-                )
-                point_counter += 1
-
-            last_lon, last_lat = interpolated[-1]
-            current_lat, current_lon = last_lat, last_lon
-
-            traveled += distance
+        # 4. Создаём GPS-точки
+        for lon, lat in interpolated:
+            VehicleTrackPoint.objects.create(
+                vehicle=vehicle,
+                point=GEOSPoint(lon, lat, srid=4326),
+                timestamp=timezone.now(),
+            )
             time.sleep(interval)
 
         self.stdout.write(self.style.SUCCESS(
