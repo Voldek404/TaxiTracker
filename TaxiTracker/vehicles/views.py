@@ -7,7 +7,14 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.serializers.json import DjangoJSONEncoder
 from django.core.exceptions import ValidationError
 from django.contrib.auth import login
+from django.utils.dateparse import parse_date
+from rest_framework.views import APIView
+from django.views.generic import TemplateView
+from geopy.distance import geodesic
+import io
+import zipfile
 import csv
+from vehicles.export_utils import make_guid
 from django.db.models import OuterRef, Subquery
 from django.views.generic import (
     ListView,
@@ -29,6 +36,11 @@ from vehicles.models import (
     VehicleTrackPoint,
     VehicleTrip,
     ENTERPRISE_TIMEZONES,
+    ResultPair,
+    WeeklyReport,
+    DailyReport,
+    RandomReport,
+    MonthlyReport
 )
 from vehicles.serializers import (
     VehiclesSerializer,
@@ -38,6 +50,13 @@ from vehicles.serializers import (
     ManagersSerializer,
     VehicleTrackPointSerializer,
     VehicleTrackPointGeoSerializer,
+    ResultPairSerializer,
+    VehicleReportSerializer,
+    DailyReportSerializer,
+    WeeklyReportSerializer,
+    MonthlyReportSerializer,
+    RandomReportSerializer
+
 )
 from vehicles.forms import VehicleForm
 from django.utils.dateparse import parse_datetime
@@ -62,6 +81,9 @@ from django.shortcuts import get_object_or_404
 from rest_framework_gis.serializers import GeoFeatureModelSerializer
 from rest_framework.renderers import JSONRenderer
 from django.http import HttpResponse
+from datetime import datetime, timedelta, date
+from collections import defaultdict
+
 
 from vehicles.serializers import VehicleTripSerializer
 from vehicles.services.geocoding import (
@@ -687,38 +709,125 @@ class EnterpriseExportView(View):
         return self.export_csv(vehicles, enterprise)
 
     def export_json(self, vehicles, enterprise):
-        data = []
+        drivers_map = {}
+        brands_map = {}
+        vehicles_data = []
+        trips_data = []
 
         for vehicle in vehicles:
-            data.append(
-                {
-                    "production_date": vehicle.prod_date,
-                    "purchase_date": vehicle.car_purchase_time,
-                    "odometer": vehicle.odometer,
-                    "price": vehicle.price,
-                    "color": vehicle.color,
-                    "plate_number": vehicle.plate_number,
-                    "brand": vehicle.brand.product_name if vehicle.brand else None,
-                    "enterprise": enterprise.name,
-                    "drivers": [driver.full_name for driver in vehicle.drivers.all()],
-                }
-            )
+            vehicle_guid = make_guid('Vehicle', vehicle.id)
 
-        payload = {"enterprise": enterprise.name, "vehicles": data}
+            # Brand
+            if vehicle.brand:
+                brand_guid = make_guid('Brand', vehicle.brand.id)
+                brands_map[brand_guid] = {
+                    "id": brand_guid,
+                    "product_name": vehicle.brand.product_name,
+                    "car_class": vehicle.brand.car_class,
+                    "fuel_tank_capacity": vehicle.brand.fuel_tank_capacity,
+                    "maximum_load_kg": vehicle.brand.maximum_load_kg,
+                    "country_of_origin": vehicle.brand.country_of_origin,
+                    "number_of_passengers": vehicle.brand.number_of_passengers,
+                }
+            else:
+                brand_guid = None
+
+            # Drivers
+            driver_guids = []
+            for driver in vehicle.drivers.all():
+                d_guid = make_guid('Driver', driver.id)
+                drivers_map[d_guid] = {
+                    "id": d_guid,
+                    "full_name": driver.full_name,
+                    "salary": driver.salary,
+                    "is_active": driver.is_active,
+                }
+                driver_guids.append(d_guid)
+
+            # Vehicle
+            vehicles_data.append({
+                "id": vehicle_guid,
+                "production_date": vehicle.prod_date.isoformat() if vehicle.prod_date else None,
+                "purchase_date": vehicle.car_purchase_time.isoformat() if vehicle.car_purchase_time else None,
+                "odometer": vehicle.odometer,
+                "price": vehicle.price,
+                "color": vehicle.color,
+                "plate_number": vehicle.plate_number,
+                "brand_id": brand_guid,
+                "enterprise_id": make_guid('Enterprise', enterprise.id),
+                "drivers": driver_guids,
+            })
+
+            # Trips
+            trips = VehicleTrip.objects.filter(vehicle=vehicle)
+            for trip in trips:
+                trips_data.append({
+                    "id": make_guid('VehicleTrip', trip.id),
+                    "vehicle_id": vehicle_guid,
+                    "start_timestamp": trip.start_timestamp.isoformat() if trip.start_timestamp else None,
+                    "end_timestamp": trip.end_timestamp.isoformat() if trip.end_timestamp else None,
+                })
+
+        payload = {
+            "enterprise": {
+                "id": make_guid('Enterprise', enterprise.id),
+                "name": enterprise.name,
+                "city": enterprise.city,
+                "timezone": enterprise.timezone,
+            },
+            "brands": list(brands_map.values()),
+            "drivers": list(drivers_map.values()),
+            "vehicles": vehicles_data,
+            "vehicle_trips": trips_data,
+        }
 
         response = HttpResponse(
             json.dumps(payload, indent=4, ensure_ascii=False, cls=DjangoJSONEncoder),
             content_type="application/json; charset=utf-8",
         )
+        response["Content-Disposition"] = f'attachment; filename="enterprise_{enterprise.id}.json"'
+        return response
 
-        response["Content-Disposition"] = (
-            f'attachment; filename="enterprise_{enterprise.id}.json"'
-        )
+    def export_csv(self, vehicles, enterprise):
+        response = HttpResponse(content_type="text/csv; charset=utf-8-sig")
+        response["Content-Disposition"] = f'attachment; filename="enterprise_{enterprise.id}.csv"'
+        writer = csv.writer(response, lineterminator="\n")
+
+        writer.writerow([
+            "vehicle_guid",
+            "production_date",
+            "purchase_date",
+            "odometer",
+            "price",
+            "color",
+            "plate_number",
+            "brand_guid",
+            "enterprise_guid",
+            "driver_guids"
+        ])
+
+        for vehicle in vehicles:
+            vehicle_guid = make_guid('Vehicle', vehicle.id)
+            brand_guid = make_guid('Brand', vehicle.brand.id) if vehicle.brand else ""
+            enterprise_guid = make_guid('Enterprise', enterprise.id)
+            driver_guids = [str(make_guid('Driver', d.id)) for d in vehicle.drivers.all()]
+
+            writer.writerow([
+                vehicle_guid,
+                vehicle.prod_date.isoformat() if vehicle.prod_date else "",
+                vehicle.car_purchase_time.isoformat() if vehicle.car_purchase_time else "",
+                vehicle.odometer,
+                vehicle.price,
+                vehicle.color,
+                vehicle.plate_number,
+                brand_guid,
+                enterprise_guid,
+                ", ".join(driver_guids),
+            ])
 
         return response
 
     def export_csv(self, vehicles, enterprise):
-        # Используем utf-8-sig для BOM, чтобы Excel понял кириллицу
         response = HttpResponse(content_type="text/csv; charset=utf-8-sig")
         response["Content-Disposition"] = (
             f'attachment; filename="enterprise_{enterprise.id}.csv"'
@@ -726,9 +835,8 @@ class EnterpriseExportView(View):
 
         writer = csv.writer(response, lineterminator="\n")
 
-        # Заголовки
         writer.writerow(
-            [
+            [   "guid",
                 "Дата изготовления",
                 "Дата покупки",
                 "Пробег, км",
@@ -744,15 +852,18 @@ class EnterpriseExportView(View):
         for vehicle in vehicles:
             writer.writerow(
                 [
+                    make_guid('Vehicle', vehicle.id),
                     vehicle.prod_date,
                     vehicle.car_purchase_time,
                     vehicle.odometer,
                     vehicle.price,
                     vehicle.color,
                     vehicle.plate_number,
-                    vehicle.brand.product_name if vehicle.brand else "",
-                    enterprise.name,
-                    ", ".join([driver.full_name for driver in vehicle.drivers.all()]),
+                    make_guid('Brand', vehicle.brand.id) if vehicle.brand else "",
+                    make_guid('Enterprise', enterprise.id),
+                    make_guid('Driver', vehicle.driver.id) if vehicle.driver else "",
+                    ", ".join([str(make_guid('Driver', d.id)) for d in vehicle.drivers.all()]),
+
                 ]
             )
 
@@ -788,10 +899,10 @@ class VehicleTripsExportView(View):
         for trip in trips:
             data.append(
                 {
-                    "id": trip.id,
+                    "id": make_guid('Trip', trip.id),
                     "start_timestamp": trip.start_timestamp,
                     "end_timestamp": trip.end_timestamp,
-                    "vehicle_id": vehicle.id,
+                    "vehicle_id": make_guid('Vehicle', vehicle.id),
                     "vehicle_plate": vehicle.plate_number,
                 }
             )
@@ -819,10 +930,10 @@ class VehicleTripsExportView(View):
         for trip in trips:
             writer.writerow(
                 [
-                    trip.id,
+                    make_guid('Trip', trip.id),
                     trip.start_timestamp,
                     trip.end_timestamp,
-                    vehicle.id,
+                    make_guid('Vehicle', vehicle.id),
                     vehicle.plate_number,
                 ]
             )
@@ -1013,7 +1124,6 @@ class VehicleTripImportView(View):
             for row in rows:
                 points_data = row.get("points") or []
 
-                # Для CSV, где каждая строка — точка
                 if not points_data and ("lat" in row or "address" in row):
                     points_data = [row]
 
@@ -1069,3 +1179,262 @@ class VehicleTripImportView(View):
             messages.error(request, f"Ошибка импорта: {str(e)}")
 
         return redirect("ui_vehicle_details", pk=vehicle.id)
+
+
+class ReportPageView(TemplateView):
+    template_name = "report_page.html"
+
+
+class BaseReportAPIView(APIView):
+    authentication_classes = [SessionAuthentication, JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get_filtered_points(self, request):
+        user = request.user
+        if not hasattr(user, "managers"):
+            return Response({"detail": "Нет доступа"}, status=403)
+        manager = user.managers
+
+        vehicle_ids = request.GET.getlist("vehicle_ids")
+        if not vehicle_ids:
+            return Response({"detail": "Не выбраны автомобили"}, status=400)
+
+        start = parse_date(request.GET.get("start"))
+        end = parse_date(request.GET.get("end"))
+
+        qs = VehicleTrackPoint.objects.filter(
+            vehicle_id__in=vehicle_ids,
+            vehicle__enterprise__in=manager.enterprises.all()
+        )
+
+        if start and end:
+            start_dt = datetime.combine(start, datetime.min.time())
+            end_dt = datetime.combine(end, datetime.max.time())
+            qs = qs.filter(timestamp__range=(start_dt, end_dt))
+        elif start:
+            start_dt = datetime.combine(start, datetime.min.time())
+            qs = qs.filter(timestamp__gte=start_dt)
+        elif end:
+            end_dt = datetime.combine(end, datetime.max.time())
+            qs = qs.filter(timestamp__lte=end_dt)
+
+        return qs.order_by("vehicle_id", "timestamp")
+
+    def calculate_distance(self, points):
+        distance = 0.0
+        prev_point = None
+
+        for p in points:
+            current_coords = (p.point.y, p.point.x)  # (lat, lon)
+            if prev_point:
+                prev_coords = (prev_point.point.y, prev_point.point.x)
+                distance += geodesic(prev_coords, current_coords).km
+            prev_point = p
+
+        return round(distance, 2)
+
+    def group_by_day(self, points):
+        daily_points = {}
+        for p in points:
+            day = p.timestamp.date()
+            daily_points.setdefault(day, []).append(p)
+        return daily_points
+
+    def get_report_type(self):
+        if isinstance(self, DailyReportAPIView):
+            return "daily"
+        elif isinstance(self, WeeklyReportAPIView):
+            return "weekly"
+        elif isinstance(self, MonthlyReportAPIView):
+            return "monthly"
+        elif isinstance(self, RandomReportAPIView):
+            return "random"
+        return "unknown"
+
+
+class DailyReportAPIView(BaseReportAPIView):
+    def get(self, request):
+        report_type = self.get_report_type()
+        points = self.get_filtered_points(request)
+        if isinstance(points, Response):
+            return points
+
+        results = []
+        vehicle_ids = request.GET.getlist("vehicle_ids")
+
+        for vid in vehicle_ids:
+            try:
+                vehicle = Vehicle.objects.get(id=vid)
+            except Vehicle.DoesNotExist:
+                continue
+
+            vehicle_points = points.filter(vehicle_id=vid)
+            if not vehicle_points.exists():
+                results.append({
+                    "vehicle": vehicle.plate_number,
+                    "duration": "-",
+                    "value": 0,
+                    "report_type": report_type
+                })
+                continue
+
+            daily_points = self.group_by_day(vehicle_points)
+            for day, pts in daily_points.items():
+                results.append({
+                    "vehicle": vehicle.plate_number,
+                    "duration": str(day),
+                    "value": round(self.calculate_distance(pts), 2),
+                    "report_type": report_type
+                })
+        return Response(results)
+
+
+class WeeklyReportAPIView(BaseReportAPIView):
+    def get(self, request):
+        report_type = self.get_report_type()
+        points = self.get_filtered_points(request)
+        if isinstance(points, Response):
+            return points
+
+        results = []
+        vehicle_ids = request.GET.getlist("vehicle_ids")
+
+        for vid in vehicle_ids:
+            try:
+                vehicle = Vehicle.objects.get(id=vid)
+            except Vehicle.DoesNotExist:
+                continue
+
+            vehicle_points = points.filter(vehicle_id=vid)
+            if not vehicle_points.exists():
+                results.append({
+                    "vehicle": vehicle.plate_number,
+                    "duration": "-",
+                    "value": 0,
+                    "report_type": report_type
+                })
+                continue
+
+            daily_points = self.group_by_day(vehicle_points)
+            weekly = {}
+            for day, pts in daily_points.items():
+                week_start = day - timedelta(days=day.weekday())
+                weekly.setdefault(week_start, []).extend(pts)
+
+            for week_start, pts in weekly.items():
+                results.append({
+                    "vehicle": vehicle.plate_number,
+                    "duration": f"{week_start} - {week_start + timedelta(days=6)}",
+                    "value": round(self.calculate_distance(pts), 2),
+                    "report_type": report_type
+                })
+
+        return Response(results)
+
+
+class MonthlyReportAPIView(BaseReportAPIView):
+    def get(self, request):
+        report_type = self.get_report_type()
+        points = self.get_filtered_points(request)
+        if isinstance(points, Response):
+            return points
+
+        results = []
+        vehicle_ids = request.GET.getlist("vehicle_ids")
+
+        for vid in vehicle_ids:
+            try:
+                vehicle = Vehicle.objects.get(id=vid)
+            except Vehicle.DoesNotExist:
+                continue
+
+            vehicle_points = points.filter(vehicle_id=vid)
+            if not vehicle_points.exists():
+                results.append({
+                    "vehicle": vehicle.plate_number,
+                    "duration": "-",
+                    "value": 0,
+                    "report_type": report_type
+                })
+                continue
+
+            monthly = {}
+            for p in vehicle_points:
+                month_key = p.timestamp.strftime("%Y-%m")
+                monthly.setdefault(month_key, []).append(p)
+
+            for month, pts in monthly.items():
+                results.append({
+                    "vehicle": vehicle.plate_number,
+                    "duration": month,
+                    "value": round(self.calculate_distance(pts), 2),
+                    "report_type": report_type
+                })
+
+        return Response(results)
+
+
+class RandomReportAPIView(BaseReportAPIView):
+    def get(self, request):
+        metric = request.GET.get("metric")
+        points = self.get_filtered_points(request)
+        if isinstance(points, Response):
+            return points
+
+        results = []
+        vehicles = set(points.values_list('vehicle_id', flat=True))
+
+        for vid in vehicles:
+            try:
+                vehicle = Vehicle.objects.get(id=vid)
+            except Vehicle.DoesNotExist:
+                continue
+
+            vehicle_points = points.filter(vehicle_id=vid)
+            if not vehicle_points.exists():
+                results.append({
+                    "vehicle": vehicle.plate_number,
+                    "duration": "-",
+                    "value": 0,
+                    "report_type": metric
+                })
+                continue
+
+            if metric == "average_per_day":
+                daily_points = self.group_by_day(vehicle_points)
+                total_distance = sum(self.calculate_distance(pts) for pts in daily_points.values())
+                days = len(daily_points)
+                avg = total_distance / days if days else 0
+                results.append({
+                    "vehicle": vehicle.plate_number,
+                    "duration": f"{days} дня/дней",
+                    "value": round(avg, 2),
+                    "report_type": "Средний пробег в день"
+                })
+
+            elif metric == "max_day":
+                daily_points = self.group_by_day(vehicle_points)
+                max_dist = 0
+                max_day = None
+                for day, pts in daily_points.items():
+                    dist = self.calculate_distance(pts)
+                    if dist > max_dist:
+                        max_dist = dist
+                        max_day = day
+                results.append({
+                    "vehicle": vehicle.plate_number,
+                    "duration": str(max_day),
+                    "value": round(max_dist, 2),
+                    "report_type": "День с максимальным пробегом"
+                })
+
+            elif metric == "total_distance":
+                dist = self.calculate_distance(vehicle_points)
+                results.append({
+                    "vehicle": vehicle.plate_number,
+                    "duration": f"{vehicle_points.first().timestamp.date() if vehicle_points.exists() else ''} - {vehicle_points.last().timestamp.date() if vehicle_points.exists() else ''}",
+                    "value": round(dist, 2),
+                    "report_type": "Общий пробег"
+                })
+
+        return Response(results)

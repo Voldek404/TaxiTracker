@@ -45,6 +45,11 @@ from vehicles.views import (
     EnterpriseImportView,
     VehicleImportView,
     VehicleTripImportView,
+    DailyReportAPIView,
+    WeeklyReportAPIView,
+    MonthlyReportAPIView,
+    RandomReportAPIView,
+    ReportPageView
 )
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -139,5 +144,32 @@ urlpatterns = [
         VehicleTripImportView.as_view(),
         name="vehicle_trips_import",
     ),
+    path(
+        "api/v1/reports/daily/",
+        DailyReportAPIView.as_view(),
+        name="daily-report"
+    ),
+    path(
+        "api/v1/reports/weekly/",
+        WeeklyReportAPIView.as_view(),
+        name="weekly-report"
+    ),
+    path(
+        "api/v1/reports/monthly/",
+        MonthlyReportAPIView.as_view(),
+        name="monthly-report"
+    ),
+    path(
+        "api/v1/reports/random/",
+        RandomReportAPIView.as_view(),
+        name="random-report"
+    ),
+    path
+
+
+    ("reports/",
+     ReportPageView.as_view(),
+     name="report_page"
+     )
     # path('api/v1/vehicle_trips/<int:pk>/', VehicleTripsAPIView.as_view(), name='vehicle-trips'),
 ]

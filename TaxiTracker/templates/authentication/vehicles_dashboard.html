@@ -1,141 +1,302 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8">
-    <title>Vehicles Dashboard</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+<meta charset="UTF-8">
+<title>Vehicles Dashboard</title>
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+
 </head>
+
 <body>
+
 <div class="mb-3">
-    <form method="post" action="{% url 'vehicles_import' pk=enterprise_id %}" enctype="multipart/form-data">
-        {% csrf_token %}
-        <input type="file" name="file" accept=".csv,.json" class="form-control form-control-sm mb-1" required>
-        <button type="submit" class="btn btn-sm btn-success w-100">Импорт авто</button>
-    </form>
+<form method="post" action="{% url 'vehicles_import' pk=enterprise_id %}" enctype="multipart/form-data">
+{% csrf_token %}
+<input type="file" name="file" accept=".csv,.json" class="form-control form-control-sm mb-1" required>
+<button type="submit" class="btn btn-sm btn-success w-100">Импорт авто</button>
+</form>
 </div>
+
 <div class="d-flex justify-content-end p-3">
-    <form method="post" action="{% url 'logout' %}" style="display: inline;">
-        {% csrf_token %}
-        <button type="submit" class="btn btn-danger">Выйти</button>
-    </form>
+<form method="post" action="{% url 'logout' %}">
+{% csrf_token %}
+<button type="submit" class="btn btn-danger">Выйти</button>
+</form>
 </div>
+
+<div class="container mt-4">
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2>Список автомобилей</h2>
-    <a href="{% url 'vehicle_create' %}" class="btn btn-success">Добавить автомобиль</a>
+<h2>Список автомобилей</h2>
+<a href="{% url 'vehicle_create' %}" class="btn btn-success">Добавить автомобиль</a>
 </div>
+
 {% if messages %}
-  {% for message in messages %}
-    <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
-      {{ message }}
-      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-  {% endfor %}
+{% for message in messages %}
+<div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+{{ message }}
+<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endfor %}
 {% endif %}
+
 <form method="post" action="{% url 'vehicles_bulk_delete' %}">
-    {% csrf_token %}
-    <div class="container mt-4">
-        <button type="submit" class="btn btn-danger">Удалить выбранные</button>
-        <table class="table table-hover">
-            <thead class="table-dark">
-                <tr>
-                    <th><input type="checkbox" id="select_all"></th>
-                    <th>Дата изготовления</th>
-                    <th>Дата покупки</th>
-                    <th>Пробег, км</th>
-                    <th>Цена, руб</th>
-                    <th>Цвет</th>
-                    <th>Номер</th>
-                    <th>Марка</th>
-                    <th>Предприятие</th>
-                    <th>Водители</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for vehicle in page_obj %}
-                <tr style="cursor: pointer;" onclick="if(event.target.type !== 'checkbox') window.location='{% url 'ui_vehicle_details' vehicle.id %}'">
-                    <td><input type="checkbox" name="vehicle_ids" value="{{ vehicle.id }}"></td>
-                    <td>{{ vehicle.prod_date }}</td>
-                    <td>{{ vehicle.car_purchase_time }}</td>
-                    <td>{{ vehicle.odometer }}</td>
-                    <td>{{ vehicle.price }}</td>
-                    <td>{{ vehicle.color }}</td>
-                    <td>{{ vehicle.plate_number }}</td>
-                    <td>{{ vehicle.brand }}</td>
-                    <td>{{ vehicle.enterprise }}</td>
-                    <td>{{ vehicle.driver }}</td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="9" class="text-center">Автомобили не найдены</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+{% csrf_token %}
 
-        {% if page_obj.has_other_pages %}
-        <nav aria-label="Page navigation">
-            <ul class="pagination justify-content-center">
-                {% if page_obj.has_previous %}
-                    <li class="page-item">
-                        <a class="page-link" href="?page=1">&laquo; Первая</a>
-                    </li>
-                    <li class="page-item">
-                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Назад</a>
-                    </li>
-                {% else %}
-                    <li class="page-item disabled">
-                        <span class="page-link">&laquo; Первая</span>
-                    </li>
-                    <li class="page-item disabled">
-                        <span class="page-link">Назад</span>
-                    </li>
-                {% endif %}
+<div class="d-flex align-items-center gap-2 mb-3 flex-wrap"
+style="position: sticky; top:0; background:#fff; z-index:1000; padding:10px; border-bottom:1px solid #dee2e6;">
 
-                {% for num in page_obj.paginator.page_range %}
-                    {% if page_obj.number == num %}
-                        <li class="page-item active">
-                            <span class="page-link">{{ num }}</span>
-                        </li>
-                    {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
-                        <li class="page-item">
-                            <a class="page-link" href="?page={{ num }}">{{ num }}</a>
-                        </li>
-                    {% endif %}
-                {% endfor %}
+<button type="submit" class="btn btn-danger">
+Удалить выбранные
+</button>
 
-                {% if page_obj.has_next %}
-                    <li class="page-item">
-                        <a class="page-link" href="?page={{ page_obj.next_page_number }}">Вперед</a>
-                    </li>
-                    <li class="page-item">
-                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Последняя &raquo;</a>
-                    </li>
-                {% else %}
-                    <li class="page-item disabled">
-                        <span class="page-link">Вперед</span>
-                    </li>
-                    <li class="page-item disabled">
-                        <span class="page-link">Последняя &raquo;</span>
-                    </li>
-                {% endif %}
-            </ul>
+<button type="button" class="btn btn-outline-primary" onclick="runReport('daily')">
+Daily
+</button>
 
-            <div class="text-center text-muted mt-2">
-                Страница {{ page_obj.number }} из {{ page_obj.paginator.num_pages }}
-                (всего: {{ page_obj.paginator.count }} авто)
-            </div>
-        </nav>
-        {% endif %}
+<button type="button" class="btn btn-outline-primary" onclick="runReport('weekly')">
+Weekly
+</button>
 
-    </div>
+<button type="button" class="btn btn-outline-primary" onclick="runReport('monthly')">
+Monthly
+</button>
+
+<button type="button" class="btn btn-outline-primary" onclick="runReport('random')">
+Random
+</button>
+
+<select id="report-metric" class="form-control" style="width:220px">
+<option value="average_per_day">Средний пробег в день</option>
+<option value="max_day">День с максимальным пробегом</option>
+<option value="total_distance">Общий пробег</option>
+</select>
+
+<input type="date" id="start-date" class="form-control" style="width:170px">
+
+<input type="date" id="end-date" class="form-control" style="width:170px">
+
+<input type="month" id="month-picker"
+class="form-control"
+style="width:170px"
+onchange="monthToDates()">
+
+</div>
+
+<table class="table table-hover">
+
+<thead class="table-dark">
+
+<tr>
+
+<th>
+<input type="checkbox" id="select_all">
+</th>
+
+<th>Дата изготовления</th>
+<th>Дата покупки</th>
+<th>Пробег</th>
+<th>Цена</th>
+<th>Цвет</th>
+<th>Номер</th>
+<th>Марка</th>
+<th>Предприятие</th>
+<th>Водитель</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+{% for vehicle in page_obj %}
+
+<tr style="cursor:pointer"
+onclick="if(event.target.type !== 'checkbox') window.location='{% url 'ui_vehicle_details' vehicle.id %}'">
+
+<td>
+<input type="checkbox"
+class="vehicle-checkbox"
+name="vehicle_ids"
+value="{{ vehicle.id }}">
+</td>
+
+<td>{{ vehicle.prod_date }}</td>
+<td>{{ vehicle.car_purchase_time }}</td>
+<td>{{ vehicle.odometer }}</td>
+<td>{{ vehicle.price }}</td>
+<td>{{ vehicle.color }}</td>
+<td>{{ vehicle.plate_number }}</td>
+<td>{{ vehicle.brand }}</td>
+<td>{{ vehicle.enterprise }}</td>
+<td>{{ vehicle.driver }}</td>
+
+</tr>
+
+{% empty %}
+
+<tr>
+<td colspan="10" class="text-center">
+Автомобили не найдены
+</td>
+</tr>
+
+{% endfor %}
+
+</tbody>
+
+</table>
+
+{% if page_obj.has_other_pages %}
+
+<nav>
+
+<ul class="pagination justify-content-center">
+
+{% if page_obj.has_previous %}
+
+<li class="page-item">
+<a class="page-link" href="?page=1">« Первая</a>
+</li>
+
+<li class="page-item">
+<a class="page-link" href="?page={{ page_obj.previous_page_number }}">Назад</a>
+</li>
+
+{% endif %}
+
+{% for num in page_obj.paginator.page_range %}
+
+{% if page_obj.number == num %}
+
+<li class="page-item active">
+<span class="page-link">{{ num }}</span>
+</li>
+
+{% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+
+<li class="page-item">
+<a class="page-link" href="?page={{ num }}">{{ num }}</a>
+</li>
+
+{% endif %}
+
+{% endfor %}
+
+{% if page_obj.has_next %}
+
+<li class="page-item">
+<a class="page-link" href="?page={{ page_obj.next_page_number }}">Вперед</a>
+</li>
+
+<li class="page-item">
+<a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Последняя »</a>
+</li>
+
+{% endif %}
+
+</ul>
+
+</nav>
+
+{% endif %}
+
 </form>
 
+</div>
+
 <script>
-    document.getElementById('select_all').addEventListener('change', function() {
-        const checkboxes = document.querySelectorAll('input[name="vehicle_ids"]');
-        checkboxes.forEach(cb => cb.checked = this.checked);
+function getSelectedVehicles() {
+    const boxes = document.querySelectorAll(".vehicle-checkbox:checked");
+    return Array.from(boxes).map(cb => cb.value);
+}
+
+function updateReportButtons() {
+    const startVal = document.getElementById("start-date").value;
+    const endVal = document.getElementById("end-date").value;
+    const month = document.getElementById("month-picker").value;
+
+    const btnDaily = document.querySelector("button[onclick=\"runReport('daily')\"]");
+    const btnWeekly = document.querySelector("button[onclick=\"runReport('weekly')\"]");
+    const btnMonthly = document.querySelector("button[onclick=\"runReport('monthly')\"]");
+
+    if (startVal && endVal) {
+        // создаем даты в UTC
+        const startParts = startVal.split("-").map(Number);
+        const endParts = endVal.split("-").map(Number);
+
+        const startDateUTC = Date.UTC(startParts[0], startParts[1]-1, startParts[2]);
+        const endDateUTC = Date.UTC(endParts[0], endParts[1]-1, endParts[2]);
+
+        const diffDays = Math.round((endDateUTC - startDateUTC) / (1000 * 60 * 60 * 24)) + 1;
+
+        btnDaily.disabled = diffDays !== 1;
+        btnWeekly.disabled = diffDays !== 7;
+    } else {
+        btnDaily.disabled = true;
+        btnWeekly.disabled = true;
+    }
+
+    btnMonthly.disabled = !month;
+
+    [btnDaily, btnWeekly, btnMonthly].forEach(btn => {
+        if (btn.disabled) {
+            btn.classList.add("btn-secondary");
+            btn.classList.remove("btn-outline-primary");
+        } else {
+            btn.classList.remove("btn-secondary");
+            btn.classList.add("btn-outline-primary");
+        }
     });
+}
+
+document.getElementById("start-date").addEventListener("change", updateReportButtons);
+document.getElementById("end-date").addEventListener("change", updateReportButtons);
+document.getElementById("month-picker").addEventListener("change", () => {
+    monthToDates();
+    updateReportButtons();
+});
+
+updateReportButtons();
+
+function runReport(type) {
+    const vehicles = getSelectedVehicles();
+    if (vehicles.length === 0) {
+        alert("Выберите хотя бы одну машину");
+        return;
+    }
+
+    const start = document.getElementById("start-date").value;
+    const end = document.getElementById("end-date").value;
+    const metric = document.getElementById("report-metric").value;
+
+    const params = new URLSearchParams();
+    vehicles.forEach(v => params.append("vehicle_ids", v));
+    if (start) params.append("start", start);
+    if (end) params.append("end", end);
+    params.append("type", type);
+    if (type === "random") params.append("metric", metric);
+
+    window.location.href = `/reports/?${params.toString()}`;
+}
+
+function monthToDates() {
+    const value = document.getElementById("month-picker").value;
+    if (!value) return;
+    const [year, month] = value.split("-");
+    const start = `${year}-${month}-01`;
+    const end = new Date(year, month, 0).toISOString().split("T")[0];
+
+    document.getElementById("start-date").value = start;
+    document.getElementById("end-date").value = end;
+}
+
+document.getElementById("select_all").addEventListener("change", function() {
+    const checkboxes = document.querySelectorAll(".vehicle-checkbox");
+    checkboxes.forEach(cb => cb.checked = this.checked);
+    updateReportButtons();
+});
 </script>
 
 </body>

@@ -2,6 +2,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.contrib.auth.models import User
 from django.contrib.gis.db import models
 from django.utils import timezone
+from datetime import timedelta
 
 ENTERPRISE_TIMEZONES = [
     ("UTC", "UTC±00:00 — Coordinated Universal Time"),
@@ -215,3 +216,70 @@ class Manager(models.Model):
 
     def __str__(self):
         return f"id = {self.id} ФИО - {self.full_name}. "
+
+
+
+class VehicleReport(models.Model):
+    vehicle = models.ForeignKey(
+        Vehicle,
+        on_delete=models.CASCADE,
+    )
+    report_name = models.CharField(max_length=100)
+    report_start_date = models.DateField()
+    report_end_date = models.DateField()
+    report_period = models.DurationField(default=timedelta)
+    report_result = models.JSONField(default=list, blank=True)
+
+    def update_report_result(self):
+        self.report_result = [
+            {"duration": str(rp.duration), "value": rp.value}
+            for rp in self.results.all()
+        ]
+        self.save()
+
+    def __str__(self):
+        return f"Report {self.report_name} for vehicle {self.vehicle.id}"
+
+
+class DailyReport(VehicleReport):
+    report_period = timedelta(days=1)
+
+    def __str__(self):
+        return f"Daily report for vehicle {self.vehicle.id}"
+
+
+class WeeklyReport(VehicleReport):
+    report_period = timedelta(weeks=1)
+
+    def __str__(self):
+        return f"Weekly report for vehicle {self.vehicle.id}"
+
+
+class MonthlyReport(VehicleReport):
+    report_period = timedelta(days=30)
+
+    def __str__(self):
+        return f"Monthly report for vehicle {self.vehicle.id}"
+
+
+class RandomReport(VehicleReport):
+    def __str__(self):
+        return f"Random report for vehicle {self.vehicle.id}"
+
+
+class ResultPair(models.Model):
+    report = models.ForeignKey(
+        VehicleReport,
+        on_delete=models.CASCADE,
+        related_name='results'
+    )
+    duration = models.DurationField(default=timedelta)
+    value = models.FloatField()
+
+    class Meta:
+        ordering = ['duration']
+
+    def __str__(self):
+        return f"t={self.duration}, value={self.value} for report id={self.report.id}"
+
+

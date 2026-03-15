@@ -8,6 +8,12 @@ from vehicles.models import (
     Manager,
     VehicleTrackPoint,
     VehicleTrip,
+    VehicleReport,
+    ResultPair,
+    DailyReport,
+    WeeklyReport,
+    MonthlyReport,
+    RandomReport
 )
 from rest_framework_gis.serializers import GeoFeatureModelSerializer
 from vehicles.services.geocoding import reverse_geocode
@@ -253,3 +259,40 @@ class VehicleTripSerializer(serializers.ModelSerializer):
             return reverse_geocode(point.point.y, point.point.x)
         except VehicleTrackPoint.DoesNotExist:
             return None
+
+
+class ResultPairSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ResultPair
+        fields = ['id', 'duration', 'value']
+
+
+class VehicleReportSerializer(serializers.ModelSerializer):
+    results = ResultPairSerializer(many=True, read_only=True)  # related_name='results'
+
+    class Meta:
+        model = VehicleReport
+        fields = [
+            'id', 'vehicle', 'report_name', 'report_start_date',
+            'report_end_date', 'report_period', 'report_result', 'results'
+        ]
+
+
+class DailyReportSerializer(VehicleReportSerializer):
+    class Meta(VehicleReportSerializer.Meta):
+        model = DailyReport
+
+
+class WeeklyReportSerializer(VehicleReportSerializer):
+    class Meta(VehicleReportSerializer.Meta):
+        model = WeeklyReport
+
+
+class MonthlyReportSerializer(VehicleReportSerializer):
+    class Meta(VehicleReportSerializer.Meta):
+        model = MonthlyReport
+
+
+class RandomReportSerializer(VehicleReportSerializer):
+    class Meta(VehicleReportSerializer.Meta):
+        model = RandomReport
