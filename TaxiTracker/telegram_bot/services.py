@@ -314,7 +314,7 @@ async def get_daily_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(" Нет данных за этот период")
             return ConversationHandler.END
 
-        text = f" Отчет за сутки {data}:\n\n"
+        text = f" Отчет за сутки {date_obj}:\n\n"
 
         for item in data:
             text += (
