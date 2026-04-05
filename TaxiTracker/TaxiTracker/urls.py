@@ -49,7 +49,8 @@ from vehicles.views import (
     WeeklyReportAPIView,
     MonthlyReportAPIView,
     RandomReportAPIView,
-    ReportPageView
+    ReportPageView,
+    DailyReportTelegramAPIView
 )
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -170,6 +171,11 @@ urlpatterns = [
     ("reports/",
      ReportPageView.as_view(),
      name="report_page"
-     )
+     ),
+    path(
+        "api/v1/tg-reports/daily/",
+        DailyReportAPIView.as_view(),
+        name="daily-tg-report"
+    ),
     # path('api/v1/vehicle_trips/<int:pk>/', VehicleTripsAPIView.as_view(), name='vehicle-trips'),
 ]

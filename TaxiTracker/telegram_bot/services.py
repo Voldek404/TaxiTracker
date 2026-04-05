@@ -268,7 +268,7 @@ async def ask_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return ASK_DAY
 
     context.user_data["date"] = f"{year:04d}-{month:02d}-{day:02d}"
-    await update.message.reply_text("Введите ID машины:")
+    await update.message.reply_text("Введите регистрационный номер ТС:")
     return ASK_DAILY_VEHICLE_ID
 
 async def get_daily_report(update: Update, context: ContextTypes.DEFAULT_TYPE):

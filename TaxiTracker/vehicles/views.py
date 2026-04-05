@@ -1438,3 +1438,108 @@ class RandomReportAPIView(BaseReportAPIView):
                 })
 
         return Response(results)
+
+
+
+class BaseReportTelegramAPIView(APIView):
+    authentication_classes = [SessionAuthentication, JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get_filtered_points(self, request):
+        user = request.user
+        if not hasattr(user, "managers"):
+            return Response({"detail": "Нет доступа"}, status=403)
+        manager = user.managers
+
+        vehicle_pns = request.GET.getlist("vehicle_pns")
+        if not vehicle_pns:
+            return Response({"detail": "Не выбраны автомобили"}, status=400)
+
+        start = parse_date(request.GET.get("start"))
+        end = parse_date(request.GET.get("end"))
+
+        qs = VehicleTrackPoint.objects.filter(
+            vehicle_plate_number__in=vehicle_pns,
+            vehicle__enterprise__in=manager.enterprises.all()
+        )
+
+        if start and end:
+            start_dt = datetime.combine(start, datetime.min.time())
+            end_dt = datetime.combine(end, datetime.max.time())
+            qs = qs.filter(timestamp__range=(start_dt, end_dt))
+        elif start:
+            start_dt = datetime.combine(start, datetime.min.time())
+            qs = qs.filter(timestamp__gte=start_dt)
+        elif end:
+            end_dt = datetime.combine(end, datetime.max.time())
+            qs = qs.filter(timestamp__lte=end_dt)
+
+        return qs.order_by("vehicle__plate_number", "timestamp")
+
+    def calculate_distance(self, points):
+        distance = 0.0
+        prev_point = None
+
+        for p in points:
+            current_coords = (p.point.y, p.point.x)  # (lat, lon)
+            if prev_point:
+                prev_coords = (prev_point.point.y, prev_point.point.x)
+                distance += geodesic(prev_coords, current_coords).km
+            prev_point = p
+
+        return round(distance, 2)
+
+    def group_by_day(self, points):
+        daily_points = {}
+        for p in points:
+            day = p.timestamp.date()
+            daily_points.setdefault(day, []).append(p)
+        return daily_points
+
+    def get_report_type(self):
+        if isinstance(self, DailyReportTelegramAPIView):
+            return "daily"
+        # elif isinstance(self, WeeklyReportAPIView):
+        #     return "weekly"
+        # elif isinstance(self, MonthlyReportAPIView):
+        #     return "monthly"
+        # elif isinstance(self, RandomReportAPIView):
+        #     return "random"
+        # return "unknown"
+
+
+class DailyReportTelegramAPIView(BaseReportTelegramAPIView):
+    def get(self, request):
+        report_type = self.get_report_type()
+        points = self.get_filtered_points(request)
+        if isinstance(points, Response):
+            return points
+
+        results = []
+        vehicle_pns = request.GET.getlist("vehicle_pns")
+
+        for pns in vehicle_pns:
+            try:
+                vehicle = Vehicle.objects.get(plate_number=pns)
+            except Vehicle.DoesNotExist:
+                continue
+
+            vehicle_points = points.filter(vehicle__plate_number=pns)
+            if not vehicle_points.exists():
+                results.append({
+                    "vehicle": vehicle.plate_number,
+                    "duration": "-",
+                    "value": 0,
+                    "report_type": report_type
+                })
+                continue
+
+            daily_points = self.group_by_day(vehicle_points)
+            for day, pts in daily_points.items():
+                results.append({
+                    "vehicle": vehicle.plate_number,
+                    "duration": str(day),
+                    "value": round(self.calculate_distance(pts), 2),
+                    "report_type": report_type
+                })
+        return Response(results)
