@@ -1459,7 +1459,7 @@ class BaseReportTelegramAPIView(APIView):
         end = parse_date(request.GET.get("end"))
 
         qs = VehicleTrackPoint.objects.filter(
-            vehicle_plate_number__in=vehicle_pns,
+            vehicle__plate_number__in=vehicle_pns,
             vehicle__enterprise__in=manager.enterprises.all()
         )
 
@@ -1499,13 +1499,13 @@ class BaseReportTelegramAPIView(APIView):
     def get_report_type(self):
         if isinstance(self, DailyReportTelegramAPIView):
             return "daily"
-        # elif isinstance(self, WeeklyReportAPIView):
-        #     return "weekly"
-        # elif isinstance(self, MonthlyReportAPIView):
+        elif isinstance(self, MonthlyReportTelegramAPIView):
+            return "monthly"
+        # elif isinstance(self, MonthlyTelegramReportAPIView):
         #     return "monthly"
         # elif isinstance(self, RandomReportAPIView):
         #     return "random"
-        # return "unknown"
+        return "unknown"
 
 
 class DailyReportTelegramAPIView(BaseReportTelegramAPIView):
@@ -1539,7 +1539,187 @@ class DailyReportTelegramAPIView(BaseReportTelegramAPIView):
                 results.append({
                     "vehicle": vehicle.plate_number,
                     "duration": str(day),
-                    "value": round(self.calculate_distance(pts), 2),
+                    "value": round(self.calculate_distance(pts), 0),
                     "report_type": report_type
                 })
         return Response(results)
+
+class MonthlyReportTelegramAPIView(BaseReportTelegramAPIView):
+    def get(self, request):
+        report_type = self.get_report_type()
+        points = self.get_filtered_points(request)
+        if isinstance(points, Response):
+            return points
+
+        results = []
+        vehicle_pns = request.GET.getlist("vehicle_pns")
+
+        for pns in vehicle_pns:
+            try:
+                vehicle = Vehicle.objects.get(plate_number=pns)
+            except Vehicle.DoesNotExist:
+                continue
+
+            vehicle_points = points.filter(vehicle__plate_number=pns)
+            if not vehicle_points.exists():
+                results.append({
+                    "vehicle": vehicle.plate_number,
+                    "duration": "-",
+                    "value": 0,
+                    "report_type": report_type
+                })
+                continue
+
+            monthly = {}
+            for p in vehicle_points:
+                month_key = p.timestamp.strftime("%Y-%m")
+                monthly.setdefault(month_key, []).append(p)
+
+            for month, pts in monthly.items():
+                results.append({
+                    "vehicle": vehicle.plate_number,
+                    "duration": month,
+                    "value": round(self.calculate_distance(pts), 0),
+                    "report_type": report_type
+                })
+
+        return Response(results)
+
+
+class BaseFleetReportAPIView(APIView):
+    """
+    Базовый класс для отчетов по автопарку.
+    Подклассы указывают report_type = 'daily' или 'monthly'.
+    """
+
+    authentication_classes = [SessionAuthentication, JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    report_type = "unknown"  # daily или monthly
+
+    def get_filtered_points(self, request):
+        """Фильтрует VehicleTrackPoint по автопарку и диапазону дат"""
+        user = request.user
+        if not hasattr(user, "managers"):
+            return Response({"detail": "Нет доступа"}, status=403)
+
+        manager = user.managers
+        enterprise_id = request.GET.get("enterprise_id")
+        if not enterprise_id:
+            return Response({"detail": "Не указан автопарк"}, status=400)
+
+        vehicles = Vehicle.objects.filter(enterprise_id=enterprise_id)
+        if not vehicles.exists():
+            return Response({"detail": "В автопарке нет машин"}, status=400)
+
+        start = request.GET.get("start")
+        end = request.GET.get("end")
+        if not start or not end:
+            return Response({"detail": "Нужны start и end даты"}, status=400)
+
+        start_dt = datetime.strptime(start, "%Y-%m-%d")
+        end_dt = datetime.strptime(end, "%Y-%m-%d") + timedelta(days=1)
+
+        qs = VehicleTrackPoint.objects.filter(
+            vehicle__in=vehicles,
+            timestamp__gte=start_dt,
+            timestamp__lt=end_dt
+        ).order_by("vehicle__plate_number", "timestamp")
+
+        return qs
+
+    def calculate_distance(self, points):
+        """Считает суммарный пробег по списку точек"""
+        distance = 0.0
+        prev_point = None
+        for p in points:
+            if not p.point:
+                continue
+            current_coords = (p.point.y, p.point.x)
+            if prev_point:
+                prev_coords = (prev_point.point.y, prev_point.point.x)
+                distance += geodesic(prev_coords, current_coords).km
+            prev_point = p
+        return round(distance, 2)
+
+    def group_points(self, points):
+        """Группирует точки по дню или месяцу в зависимости от report_type"""
+        grouped = {}
+        for p in points:
+            if self.report_type == "daily":
+                key = p.timestamp.date()
+            elif self.report_type == "monthly":
+                key = p.timestamp.strftime("%Y-%m")
+            else:
+                key = "all"
+            grouped.setdefault((p.vehicle.plate_number, key), []).append(p)
+        return grouped
+
+    def build_report(self, points, limit=None):
+        grouped = self.group_points(points)
+        distance = 0
+        results = []
+        for (plate_number, period), pts in grouped.items():
+            distance += self.calculate_distance(pts)
+            if distance == 0 or (limit is not None and distance < limit):
+                continue
+            results.append({
+                "vehicle": plate_number,
+                "duration": str(period),
+                "value": distance,
+                "report_type": self.report_type
+            })
+        return results
+
+
+class EnterpriseDailyReportAPIView(BaseFleetReportAPIView):
+    report_type = "daily"
+
+    def get(self, request):
+        points = self.get_filtered_points(request)
+        if isinstance(points, Response):
+            return points
+
+        limit = request.GET.get("limit")
+        if limit is not None:
+            try:
+                limit = float(limit)
+            except ValueError:
+                return Response({"detail": "Лимит пробега должен быть числом"}, status=400)
+
+        results = self.build_report(points, limit=limit)
+        return Response(results)
+
+
+class EnterpriseMonthlyReportAPIView(BaseFleetReportAPIView):
+    report_type = "monthly"
+
+    def get(self, request):
+        points = self.get_filtered_points(request)
+        if isinstance(points, Response):
+            return points
+
+        limit = request.GET.get("limit")
+        if limit is not None:
+            try:
+                limit = float(limit)
+            except ValueError:
+                return Response({"detail": "Лимит пробега должен быть числом"}, status=400)
+
+        results = self.build_report(points, limit=limit)
+        return Response(results)
+
+
+
+class UserEnterprisesAPIView(APIView):
+    authentication_classes = [SessionAuthentication, JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = self.request.user
+        if hasattr(user, "managers"):
+            manager = user.managers
+            enterprises = Enterprise.objects.filter(managers=manager)
+        data = [{"id": e.id, "name": e.name} for e in enterprises]
+
+        return Response(data)

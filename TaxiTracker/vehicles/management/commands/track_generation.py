@@ -6,6 +6,7 @@ from django.contrib.gis.geos import Point as GEOSPoint
 from django.utils import timezone
 import math
 from shapely.geometry import Point, Polygon
+from geopy.distance import geodesic
 
 from vehicles.models import Vehicle, VehicleTrackPoint, VehicleTrip
 
@@ -82,12 +83,14 @@ class Command(BaseCommand):
                 start_timestamp=now,
                 end_timestamp=now + timezone.timedelta(minutes=10),
             )
+
         interval = opts["interval"]
         target_distance = opts["track_km"] * 1000
 
         min_lon, min_lat, max_lon, max_lat = moscow_polygon.bounds
         current_lon = random.uniform(min_lon, max_lon)
         current_lat = random.uniform(min_lat, max_lat)
+
         traveled = 0
         point_counter = 0
 
@@ -95,28 +98,56 @@ class Command(BaseCommand):
             f"Старт трекинга авто {vehicle.id} ({vehicle.plate_number})"
         ))
 
+        # Генерация конечной точки
         angle = random.uniform(0, 2 * math.pi)
         dlat = (target_distance / 111_320) * math.cos(angle)
         dlon = (target_distance / (111_320 * math.cos(math.radians(current_lat)))) * math.sin(angle)
+
         dest_lat = current_lat + dlat
         dest_lon = current_lon + dlon
 
-        # 2. Строим один маршрут через GraphHopper до этой точки
-        route = self.graphhopper_route(start=(current_lat, current_lon), end=(dest_lat, dest_lon))
+        # Маршрут
+        route = self.graphhopper_route(
+            start=(current_lat, current_lon),
+            end=(dest_lat, dest_lon)
+        )
 
-        # 3. Интерполируем точки на всём маршруте
         interpolated = self.interpolate_route(route, step=opts["step"])
+        total_points = len(interpolated)
 
-        # 4. Создаём GPS-точки
-        for lon, lat in interpolated:
-            VehicleTrackPoint.objects.create(
+        self.stdout.write(self.style.SUCCESS(f"Всего точек: {total_points}"))
+
+        points_to_create = []
+        prev = None
+        traveled = 0
+        point_counter = 0
+        base_time = timezone.now()
+        interval = opts["interval"]
+
+        for i, (lon, lat) in enumerate(interpolated):
+            # считаем расстояние между точками в км
+            if prev:
+                traveled += geodesic((prev[1], prev[0]), (lat, lon)).km
+
+            point = VehicleTrackPoint(
                 vehicle=vehicle,
                 point=GEOSPoint(lon, lat, srid=4326),
-                timestamp=timezone.now(),
+                timestamp=base_time + timezone.timedelta(seconds=i * interval),
             )
-            time.sleep(interval)
+            points_to_create.append(point)
+
+            prev = (lon, lat)
+            point_counter += 1
+
+            # прогресс каждые 100 точек
+            if i % 100 == 0:
+                self.stdout.write(f"{i}/{total_points}")
+
+        # массовая вставка в базу (быстро)
+        VehicleTrackPoint.objects.bulk_create(points_to_create, batch_size=1000)
 
         self.stdout.write(self.style.SUCCESS(
-            f"Генерация трека завершена. Создано точек: {point_counter}, "
-            f"Пройдено: {traveled / 1000:.2f} км"
+            f"Генерация трека завершена.\n"
+            f"Создано точек: {point_counter}\n"
+            f"Пройдено: {traveled:.2f} км"
         ))

@@ -3,12 +3,12 @@ from asgiref.sync import sync_to_async
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler,
-    CallbackQueryHandler, ContextTypes, filters
+    CallbackQueryHandler, ContextTypes, filters, ConversationHandler
 )
 from django.conf import settings
 from django.contrib.auth import authenticate
 from .models import TelegramProfile
-from telegram.ext import ConversationHandler, MessageHandler, filters
+from vehicles.models import Manager, Enterprise
 import httpx
 import calendar
 from rest_framework.response import Response
@@ -173,11 +173,11 @@ async def ask_month(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return ASK_MONTH
 
     context.user_data["month"] = f"{year:04d}-{month:02d}"
-    await update.message.reply_text("Введите ID машины:")
+    await update.message.reply_text("Введите регистрационный номер ТС:")
     return ASK_VEHICLE_ID
 
 async def get_monthly_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    car_id = update.message.text.strip()
+    car_plate_number = update.message.text.strip()
     user = context.user_data.get("username")
     report_month = context.user_data.get("month")
     token = context.user_data.get("token")
@@ -189,10 +189,10 @@ async def get_monthly_report(update: Update, context: ContextTypes.DEFAULT_TYPE)
     year, month = map(int, report_month.split("-"))
     last_day = calendar.monthrange(year, month)[1]
 
-    url = "http://127.0.0.1:8000/api/v1/reports/monthly/"
+    url = "http://127.0.0.1:8000/api/v1/tg-reports/monthly/"
 
     params = {
-        "vehicle_ids": car_id,
+        "vehicle_pns": car_plate_number,
         "start": f"{report_month}-01",
         "end": f"{report_month}-{last_day}",
         "type": "monthly",
@@ -246,50 +246,26 @@ monthly_handler = ConversationHandler(
     fallbacks=[],
 )
 
-ASK_DAILY_VEHICLE_ID, ASK_DAY = range(2,4)
-
-async def start_daily_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("📅 Введите дату в формате YYYY-MM-DD (например 2026-02-01 или 01-02-2026):")
-    return ASK_DAY
-
-async def ask_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    date_text = update.message.text.strip()
-    try:
-        year, month, day = map(int, date_text.split("-"))
-        if not (1 <= month <= 12) or not (1 <= day <= 31) or not (2024 <= year <= 2026):
-            raise ValueError
-    except ValueError:
-        try:
-            day, month, year = map(int, date_text.split("-"))
-            if not (1 <= month <= 12) or not (1 <= day <= 31) or not (2024 <= year <= 2026):
-                raise ValueError
-        except ValueError:
-            await update.message.reply_text(" Неверный формат. Пример: 2026-02-01 или 01-02-2026")
-            return ASK_DAY
-
-    context.user_data["date"] = f"{year:04d}-{month:02d}-{day:02d}"
-    await update.message.reply_text("Введите регистрационный номер ТС:")
-    return ASK_DAILY_VEHICLE_ID
-
-async def get_daily_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    car_id = update.message.text.strip()
+async def get_monthly_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    car_plate_number = update.message.text.strip()
     user = context.user_data.get("username")
+    report_month = context.user_data.get("month")
     token = context.user_data.get("token")
 
     if not token:
         await update.message.reply_text("❗ Сначала авторизуйтесь (/login)")
         return ConversationHandler.END
 
-    date_text= context.user_data.get("date")
-    url = "http://127.0.0.1:8000/api/v1/reports/daily/"
-    date_obj = datetime.strptime(date_text, "%Y-%m-%d")
-    next_day = date_obj + timedelta(days=1)
+    year, month = map(int, report_month.split("-"))
+    last_day = calendar.monthrange(year, month)[1]
+
+    url = "http://127.0.0.1:8000/api/v1/tg-reports/monthly/"
 
     params = {
-        "vehicle_ids": car_id,
-        "start": date_obj.strftime("%Y-%m-%d"),
-        "end": next_day.strftime("%Y-%m-%d"),
-        "type": "daily",
+        "vehicle_pns": car_plate_number,
+        "start": f"{report_month}-01",
+        "end": f"{report_month}-{last_day}",
+        "type": "monthly",
     }
 
     headers = {
@@ -311,10 +287,10 @@ async def get_daily_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
         data = response.json()
 
         if not data:
-            await update.message.reply_text(" Нет данных за этот период")
+            await update.message.reply_text("📭 Нет данных за этот период")
             return ConversationHandler.END
 
-        text = f" Отчет за сутки {date_obj}:\n\n"
+        text = " Месячный отчёт:\n\n"
 
         for item in data:
             text += (
@@ -331,11 +307,253 @@ async def get_daily_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
-daily_handler = ConversationHandler(
-    entry_points=[CommandHandler("daily_report", start_daily_report)],
+ASK_ENTERPRISE, ASK_DAY, ASK_LIMIT = range(3)
+
+async def fetch_user_enterprises(token):
+    url = "http://127.0.0.1:8000/api/v1/tg-reports/user-enterprises/"
+    headers = {"Authorization": f"Bearer {token}"}
+
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url, headers=headers)
+
+    if response.status_code != 200:
+        return None
+
+    return response.json()
+
+
+async def start_fleet_daily(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    token = context.user_data.get("token")
+
+    if not token:
+        await update.message.reply_text("❗ Сначала авторизуйтесь (/login)")
+        return ConversationHandler.END
+
+    enterprises = await fetch_user_enterprises(token)
+
+    if not enterprises:
+        await update.message.reply_text("📭 У вас нет автопарков")
+        return ConversationHandler.END
+
+    keyboard = [
+        [InlineKeyboardButton(ent["name"], callback_data=str(ent["id"]))]
+        for ent in enterprises
+    ]
+
+    await update.message.reply_text(
+        "📋 Выберите автопарк:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+    return ASK_ENTERPRISE
+
+
+async def daily_enterprise_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    context.user_data["enterprise_id"] = int(query.data)
+
+    await query.message.reply_text("📅 Введите дату (YYYY-MM-DD):")
+    return ASK_DAY
+
+
+async def daily_ask_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        date_obj = datetime.strptime(update.message.text.strip(), "%Y-%m-%d")
+    except ValueError:
+        await update.message.reply_text("❌ Неверный формат даты")
+        return ASK_DAY
+
+    context.user_data["date"] = date_obj.strftime("%Y-%m-%d")
+
+    await update.message.reply_text("Введите лимит пробега (км):")
+    return ASK_LIMIT
+
+
+async def daily_ask_limit(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        limit = float(update.message.text.strip())
+    except ValueError:
+        await update.message.reply_text("❌ Введите число")
+        return ASK_LIMIT
+
+    token = context.user_data.get("token")
+    enterprise_id = context.user_data.get("enterprise_id")
+    date_text = context.user_data.get("date")
+
+    date_obj = datetime.strptime(date_text, "%Y-%m-%d")
+    next_day = date_obj + timedelta(days=1)
+
+    url = "http://127.0.0.1:8000/api/v1/tg-reports/daily-ent/"
+
+    params = {
+        "enterprise_id": enterprise_id,
+        "start": date_obj.strftime("%Y-%m-%d"),
+        "end": next_day.strftime("%Y-%m-%d"),
+        "limit": int(limit)
+    }
+
+    headers = {"Authorization": f"Bearer {token}"}
+
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            url,
+            params=params,
+            headers=headers,
+            timeout=10.0
+        )
+
+    if response.status_code != 200:
+        await update.message.reply_text("❌ Ошибка отчёта")
+        return ConversationHandler.END
+
+    data = response.json()
+
+    if not data:
+        await update.message.reply_text("📭 Нет данных")
+        return ConversationHandler.END
+
+    text = f"📊 Отчет за {date_text}:\n\n"
+
+    for item in data:
+        dist = int(item["value"])
+        if dist < limit:
+            text += f"{item['vehicle']}: {dist} км ❌ ниже лимита\n"
+        else:
+            text += f"{item['vehicle']}: {dist} км\n"
+
+    await update.message.reply_text(text)
+    return ConversationHandler.END
+
+fleet_daily_handler = ConversationHandler(
+    entry_points=[CommandHandler("fleet_daily_report", start_fleet_daily)],
     states={
-        ASK_DAY: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_day)],
-        ASK_DAILY_VEHICLE_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_daily_report)],
+        ASK_ENTERPRISE: [CallbackQueryHandler(daily_enterprise_chosen)],
+        ASK_DAY: [MessageHandler(filters.TEXT & ~filters.COMMAND, daily_ask_day)],
+        ASK_LIMIT: [MessageHandler(filters.TEXT & ~filters.COMMAND, daily_ask_limit)],
+    },
+    fallbacks=[],
+)
+
+
+ASK_MONTHLY_ENTERPRISE, ASK_MONTHLY_PERIOD, ASK_MONTHLY_LIMIT = range(10, 13)
+
+
+# === шаг 1: выбрать автопарк ===
+async def start_fleet_monthly(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    token = context.user_data.get("token")
+    if not token:
+        await update.message.reply_text("❗ Сначала авторизуйтесь (/login)")
+        return ConversationHandler.END
+
+    enterprises = await fetch_user_enterprises(token)
+    if not enterprises:
+        await update.message.reply_text("📭 У вас нет автопарков")
+        return ConversationHandler.END
+
+    keyboard = [[InlineKeyboardButton(ent["name"], callback_data=str(ent["id"]))] for ent in enterprises]
+
+    await update.message.reply_text(
+        "📋 Выберите автопарк:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    return ASK_MONTHLY_ENTERPRISE
+
+
+# === шаг 2: автопарк выбран ===
+async def monthly_enterprise_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    await query.message.edit_reply_markup(None)
+
+    try:
+        context.user_data["enterprise_id"] = int(query.data)
+    except ValueError:
+        await query.message.reply_text("❌ Неверный выбор автопарка")
+        return ConversationHandler.END
+
+    await query.message.reply_text("📅 Введите месяц для отчёта в формате YYYY-MM:")
+    return ASK_MONTHLY_PERIOD
+
+
+# === шаг 3: месяц выбран ===
+async def monthly_ask_period(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.strip()
+    try:
+        selected_month = datetime.strptime(text, "%Y-%m")
+    except ValueError:
+        await update.message.reply_text("❌ Неверный формат месяца. Используйте YYYY-MM")
+        return ASK_MONTHLY_PERIOD
+
+    context.user_data["month"] = selected_month
+    await update.message.reply_text("Введите лимит пробега (км):")
+    return ASK_MONTHLY_LIMIT
+
+
+# === шаг 4: лимит введён, формируем отчёт ===
+async def monthly_get_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        limit = float(update.message.text.strip())
+    except ValueError:
+        await update.message.reply_text("❌ Введите число")
+        return ASK_MONTHLY_LIMIT
+
+    token = context.user_data.get("token")
+    enterprise_id = context.user_data.get("enterprise_id")
+    month_obj = context.user_data.get("month")
+
+    start = month_obj.replace(day=1).strftime("%Y-%m-%d")
+    last_day = calendar.monthrange(month_obj.year, month_obj.month)[1]
+    end = month_obj.replace(day=last_day).strftime("%Y-%m-%d")
+
+    url = "http://127.0.0.1:8000/api/v1/tg-reports/monthly-ent/"
+
+    params = {
+        "enterprise_id": enterprise_id,
+        "start": start,
+        "end": end,
+    }
+    headers = {"Authorization": f"Bearer {token}"}
+
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            url,
+            params=params,
+            headers=headers,
+            timeout=20.0
+        )
+
+    if response.status_code != 200:
+        await update.message.reply_text("❌ Ошибка отчёта")
+        return ConversationHandler.END
+
+    data = response.json()
+    if not data:
+        await update.message.reply_text("📭 Нет данных")
+        return ConversationHandler.END
+
+    text = f"📊 Отчёт за {month_obj.strftime('%B %Y')}:\n\n"
+    for item in data:
+        dist = int(item["value"])
+        if dist < limit:
+            continue
+        text += f"{item['vehicle']}: {dist} км\n"
+
+    if text == f"📊 Отчёт за {month_obj.strftime('%B %Y')}:\n\n":
+        text += "Нет машин, превышающих лимит"
+
+    await update.message.reply_text(text)
+    return ConversationHandler.END
+
+
+# === Monthly ConversationHandler ===
+fleet_monthly_handler = ConversationHandler(
+    entry_points=[CommandHandler("fleet_monthly_report", start_fleet_monthly)],
+    states={
+        ASK_MONTHLY_ENTERPRISE: [CallbackQueryHandler(monthly_enterprise_chosen)],
+        ASK_MONTHLY_PERIOD: [MessageHandler(filters.TEXT & ~filters.COMMAND, monthly_ask_period)],
+        ASK_MONTHLY_LIMIT: [MessageHandler(filters.TEXT & ~filters.COMMAND, monthly_get_report)],
     },
     fallbacks=[],
 )
@@ -350,8 +568,14 @@ def setup_bot():
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("login", login_command))
 
+    # Существующие отчеты
     application.add_handler(monthly_handler)
-    application.add_handler(daily_handler)
+    application.add_handler(fleet_daily_handler)
+
+    # Новый отчёт по автопарку
+    application.add_handler(fleet_monthly_handler)
+
+    # Обработчики кнопок и текста
     application.add_handler(CallbackQueryHandler(button_callback))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
 
@@ -365,6 +589,8 @@ def setup_bot():
             BotCommand("profile", "Показать информацию о профиле"),
             BotCommand("monthly_report", "Показать пробег за месяц"),
             BotCommand("daily_report", "Показать пробег за сутки"),
+            BotCommand("fleet_monthly_report", "Месячный отчёт по автопарку"),
+            BotCommand("fleet_daily_report", "Пробег всех машин автопарка за день"),
         ]
         await app.bot.set_my_commands(commands)
 
