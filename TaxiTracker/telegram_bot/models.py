@@ -17,6 +17,7 @@ class TelegramProfile(models.Model):
     last_name = models.CharField(max_length=255, null=True, blank=True)
     is_bot = models.BooleanField(default=False)
     language_code = models.CharField(max_length=10, null=True, blank=True)
+    last_checked_at = models.DateTimeField(blank=True, null=True)
 
     def __str__(self):
         if self.manager:

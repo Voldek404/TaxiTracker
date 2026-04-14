@@ -1,4 +1,5 @@
 import logging
+from geopy.distance import geodesic
 from asgiref.sync import sync_to_async
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.ext import (
@@ -7,12 +8,17 @@ from telegram.ext import (
 )
 from django.conf import settings
 from django.contrib.auth import authenticate
+from django.db.models import QuerySet
 from .models import TelegramProfile
-from vehicles.models import Manager, Enterprise
+from vehicles.models import Manager, Enterprise, VehicleTrip, Vehicle, VehicleTrackPoint
+from vehicles.services.geocoding import reverse_geocode
 import httpx
 import calendar
 from rest_framework.response import Response
 from datetime import datetime, timedelta
+from django.utils import timezone
+from django.core.exceptions import ObjectDoesNotExist
+import asyncio
 
 
 
@@ -22,18 +28,141 @@ logger = logging.getLogger(__name__)
 application = ApplicationBuilder().token(settings.TELEGRAM_BOT_TOKEN).build()
 
 
-@sync_to_async(thread_sensitive=True)
-def save_profile(user):
-    return TelegramProfile.objects.update_or_create(
-        telegram_id=user.id,
-        defaults={
-            'username': user.username,  # Telegram username
-            'first_name': user.first_name,  # Имя из Telegram
-            'last_name': user.last_name,  # Фамилия из Telegram
-            'is_bot': user.is_bot,
-            'language_code': user.language_code,
-        }
+def calculate_distance(points):
+    """
+    points — список объектов с атрибутом point (PointField)
+    """
+    distance = 0.0
+    prev_point = None
+
+    for p in points:
+        current_coords = (p.point.y, p.point.x)  # (lat, lon)
+        if prev_point:
+            prev_coords = (prev_point.point.y, prev_point.point.x)
+            distance += geodesic(prev_coords, current_coords).km
+        prev_point = p
+
+    return round(distance, 2)
+
+
+
+# Пример использования внутри async функции
+async def show_distance(update, context):
+    # points получаем через ORM (обязательно через sync_to_async)
+    points = await sync_to_async(list)(VehicleTrackPoint.objects.filter(vehicle_id=1).order_by("timestamp"))
+
+    distance = calculate_distance(points)
+    await update.message.reply_text(f"Общая дистанция: {distance} км")
+
+
+def _get_profile_for_user(user):
+    try:
+        manager = user.managers  # это объект
+        return TelegramProfile.objects.get(manager=manager)
+    except (ObjectDoesNotExist, TelegramProfile.DoesNotExist):
+        return None
+
+
+def _get_manager(user):
+    try:
+        return user.managers
+    except Manager.DoesNotExist:
+        return None
+
+def _get_manager_vehicles(manager):
+    return Vehicle.objects.filter(
+        enterprise__in=manager.enterprises.all()
     )
+
+def _get_new_trips_for_user_sync(user):
+    manager = _get_manager(user)
+    if not manager:
+        return []
+
+    profile = _get_profile_for_user(user)
+    if not profile:
+        return []
+
+    now = timezone.now()
+    vehicles = Vehicle.objects.filter(enterprise__in=manager.enterprises.all())
+    dt_from = profile.last_checked_at or now - timezone.timedelta(days=3650)
+
+    trips = list(
+        VehicleTrip.objects.filter(
+            vehicle__in=vehicles,
+            start_timestamp__gte=dt_from
+        ).select_related("vehicle").order_by("-start_timestamp")
+    )
+
+    if trips:
+        profile.last_checked_at = now
+        profile.save(update_fields=["last_checked_at"])
+
+    return trips
+
+get_new_trips_for_user = sync_to_async(_get_new_trips_for_user_sync)
+
+def get_trip_start_end_points(trip):
+    start_point = (
+        VehicleTrackPoint.objects
+        .filter(
+            vehicle=trip.vehicle,
+            timestamp__gte=trip.start_timestamp
+        )
+        .order_by("timestamp")
+        .first()
+    )
+
+    end_point = (
+        VehicleTrackPoint.objects
+        .filter(
+            vehicle=trip.vehicle,
+            timestamp__lte=trip.end_timestamp
+        )
+        .order_by("-timestamp")
+        .first()
+    )
+
+    return start_point, end_point
+
+def extract_coords(point):
+    if not point:
+        return None
+    return point.point.y, point.point.x
+
+get_trip_points_async = sync_to_async(get_trip_start_end_points, thread_sensitive=True)
+
+
+async def format_trips(trips, limit=20):
+    if not trips:
+        return None
+
+    lines = []
+
+    for trip in trips[:limit]:
+        local_time = timezone.localtime(trip.start_timestamp)
+        vehicle = trip.vehicle
+
+        start_point, end_point = await get_trip_points_async(trip)
+
+        start_coords = extract_coords(start_point)
+        end_coords = extract_coords(end_point)
+
+        start_address = reverse_geocode(*start_coords) if start_coords else "нет данных"
+        end_address = reverse_geocode(*end_coords) if end_coords else "нет данных"
+
+        lines.append(
+            f"{vehicle.plate_number or 'без номера'} | "
+            f"{local_time.strftime('%d.%m %H:%M')}\n"
+            f"📍 Старт: {start_address}\n"
+            f"🏁 Финиш: {end_address}\n"
+        )
+
+    if len(trips) > limit:
+        lines.append(f"\n... и ещё {len(trips) - limit}")
+
+    return "Новые поездки:\n\n" + "\n".join(lines)
+
 
 
 @sync_to_async(thread_sensitive=True)
@@ -48,7 +177,6 @@ def check_manager(username, password):
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    await save_profile(user)
 
     welcome_text = f"Привет, {user.first_name}! Я бот для работы с маршрутизатором автопарков."
 
@@ -112,23 +240,36 @@ async def login_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
     username = context.user_data.get("username")
 
     user = await check_manager(username, password)
+    if not user:
+        await update.message.reply_text(
+            "Неверный логин или пароль. Введите команду /login заново."
+        )
+        return ConversationHandler.END
 
-    if user:
-        url = "http://127.0.0.1:8000/api/v1/token/"
-        data = {
-            "username": username,
-            "password": password
-        }
-        async with httpx.AsyncClient() as client:
-            response = await client.post(url, data=data)
-            if response.status_code == 200:
-                token = response.json().get("access")
-                context.user_data["token"] = token
-                await update.message.reply_text(
-                    f"Привет, {user.get_full_name()}! Авторизация успешна , Токен для api получен"
-                )
-            else:
-                await update.message.reply_text("Неверный логин или пароль , введите команду /login заново")
+    url = "http://127.0.0.1:8000/api/v1/token/"
+    data = {"username": username, "password": password}
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        response = await client.post(url, data=data)
+        if response.status_code != 200:
+            await update.message.reply_text("Ошибка получения токена")
+            return ConversationHandler.END
+        token = response.json().get("access")
+        context.user_data["token"] = token
+
+    await update.message.reply_text(
+        f"Привет, {user.get_full_name()}! Авторизация успешна."
+    )
+
+    trips = await get_new_trips_for_user(user)
+
+    if trips:
+        try:
+            text = await asyncio.wait_for(format_trips(trips), timeout=15)
+            await update.message.reply_text(text)
+        except asyncio.TimeoutError:
+            await update.message.reply_text("⏱ Слишком долго загружаются поездки")
+    else:
+        await update.message.reply_text("Новых поездок нет.")
 
     return ConversationHandler.END
 

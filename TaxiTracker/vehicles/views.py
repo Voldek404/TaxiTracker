@@ -11,6 +11,7 @@ from django.utils.dateparse import parse_date
 from rest_framework.views import APIView
 from django.views.generic import TemplateView
 from geopy.distance import geodesic
+import gpxpy
 import io
 import zipfile
 import csv
@@ -1723,3 +1724,107 @@ class UserEnterprisesAPIView(APIView):
         data = [{"id": e.id, "name": e.name} for e in enterprises]
 
         return Response(data)
+
+
+class ImportGPXView(View):
+    def post(self, request, pk):
+        vehicle = get_object_or_404(Vehicle, pk=pk)
+        file = request.FILES.get("gpx_file")
+
+        if not file:
+            messages.error(request, "Файл не выбран")
+            return redirect("ui_vehicle_details", pk=vehicle.id)
+
+        if not file.name.lower().endswith(".gpx"):
+            messages.error(request, "Файл должен быть в формате GPX")
+            return redirect("ui_vehicle_details", pk=vehicle.id)
+
+        try:
+            gpx = gpxpy.parse(file)
+
+            if not gpx.tracks:
+                messages.error(request, "GPX файл не содержит треков")
+                return redirect("ui_vehicle_details", pk=vehicle.id)
+
+            created = 0
+
+            for track in gpx.tracks:
+                for segment in track.segments:
+
+                    processed_points = []
+
+                    for point in segment.points:
+                        if not point.time:
+                            continue
+
+                        timestamp = point.time
+                        processed_points.append({
+                            "lat": point.latitude,
+                            "lng": point.longitude,
+                            "timestamp": timestamp
+                        })
+
+                    if not processed_points:
+                        messages.warning(request, "Сегмент без валидных точек пропущен")
+                        continue
+
+                    processed_points.sort(key=lambda x: x["timestamp"])
+
+                    start_ts = processed_points[0]["timestamp"]
+                    end_ts = processed_points[-1]["timestamp"]
+
+                    overlap_exists = VehicleTrip.objects.filter(
+                        vehicle=vehicle,
+                        start_timestamp__lte=end_ts,
+                        end_timestamp__gte=start_ts,
+                    ).exists()
+
+                    if overlap_exists:
+                        messages.warning(
+                            request,
+                            f"Пропущена поездка ({start_ts} - {end_ts}) — пересечение с существующей"
+                        )
+                        continue
+
+                    trip = VehicleTrip.objects.create(
+                        vehicle=vehicle,
+                        start_timestamp=start_ts,
+                        end_timestamp=end_ts,
+                    )
+
+                    track_points = []
+                    skipped_duplicates = 0
+
+                    for p in processed_points:
+                        exists = VehicleTrackPoint.objects.filter(
+                            vehicle=vehicle,
+                            timestamp=p["timestamp"],
+                        ).exists()
+
+                        if exists:
+                            skipped_duplicates += 1
+                            continue
+
+                        track_points.append(
+                            VehicleTrackPoint(
+                                vehicle=vehicle,
+                                point=GEOSPoint(p["lng"], p["lat"], srid=4326),
+                                timestamp=p["timestamp"],
+                            )
+                        )
+
+                    if not track_points:
+                        messages.warning(request, "Все точки оказались дубликатами — поездка пропущена")
+                        trip.delete()
+                        continue
+
+                    VehicleTrackPoint.objects.bulk_create(track_points)
+
+                    created += 1
+
+            messages.success(request, f"Импортировано поездок: {created}")
+
+        except Exception as e:
+            messages.error(request, f"Ошибка GPX импорта: {str(e)}")
+
+        return redirect("ui_vehicle_details", pk=vehicle.id)

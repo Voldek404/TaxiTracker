@@ -182,6 +182,25 @@
         Импорт поездок
     </button>
 </form>
+    <h4>Импорт GPX-файлов</h4>
+    <form method="post"
+      action="{% url 'vehicle_trips_import_gpx' ui_vehicle_details.id %}"
+      enctype="multipart/form-data"
+      class="mb-4">
+
+    {% csrf_token %}
+
+    <input type="file"
+           name="gpx_file"
+           accept=".gpx"
+           class="form-control mb-2"
+           required>
+
+    <button type="submit"
+            class="btn btn-primary btn-sm">
+        Импортировать GPX-файл
+    </button>
+</form>
 <h3>Поездки автомобиля</h3>
 
 <form method="get" class="row g-3 mb-4">

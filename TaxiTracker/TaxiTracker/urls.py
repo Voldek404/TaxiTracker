@@ -54,7 +54,8 @@ from vehicles.views import (
     MonthlyReportTelegramAPIView,
     EnterpriseMonthlyReportAPIView,
     EnterpriseDailyReportAPIView,
-    UserEnterprisesAPIView
+    UserEnterprisesAPIView,
+    ImportGPXView,
 
 )
 from rest_framework_simplejwt.views import (
@@ -197,6 +198,11 @@ urlpatterns = [
         EnterpriseMonthlyReportAPIView.as_view(),
         name="monthly-ent-tg-report"
         ),
-path("api/v1/tg-reports/user-enterprises/", UserEnterprisesAPIView.as_view(), name="user-enterprises"),
+    path("api/v1/tg-reports/user-enterprises/", UserEnterprisesAPIView.as_view(), name="user-enterprises"),
+    path(
+        "vehicle/<int:pk>/import-gpx-trips/",
+        ImportGPXView.as_view(),
+        name="vehicle_trips_import_gpx"
+    ),
     # path('api/v1/vehicle_trips/<int:pk>/', VehicleTripsAPIView.as_view(), name='vehicle-trips'),
 ]
