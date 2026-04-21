@@ -7,6 +7,7 @@ from django.utils import timezone
 import math
 from shapely.geometry import Point, Polygon
 from geopy.distance import geodesic
+from django.utils.dateparse import parse_datetime
 
 from vehicles.models import Vehicle, VehicleTrackPoint, VehicleTrip
 
@@ -49,6 +50,7 @@ class Command(BaseCommand):
         parser.add_argument("--track-km", type=float, default=5, help="суммарная длина трека в км")
         parser.add_argument("--step", type=float, default=20, help="шаг между точками в метрах")
         parser.add_argument("--trip-id", type=int, required=False)
+        parser.add_argument("--start-datetime", type=str, required=False)
 
     def interpolate_route(self, route, step):
         interpolated = []
@@ -121,7 +123,10 @@ class Command(BaseCommand):
         prev = None
         traveled = 0
         point_counter = 0
-        base_time = timezone.now()
+        if opts.get("start_datetime"):
+            base_time = parse_datetime(opts["start_datetime"])
+        else:
+            base_time = timezone.now()
         interval = opts["interval"]
 
         for i, (lon, lat) in enumerate(interpolated):
