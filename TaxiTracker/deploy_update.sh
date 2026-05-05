@@ -7,7 +7,7 @@ rsync -avz --delete \
   --exclude "*.sh" \
   --exclude "*.ini" \
   --exclude ".env" \
-  ./ django@77.232.42.38:/home/django/app
+  ./ django@your_ip:/home/django/app
 
 
 # Выполнить в терминале на удаленном сервере
