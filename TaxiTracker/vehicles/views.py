@@ -92,6 +92,11 @@ from vehicles.services.geocoding import (
     build_route,
     interpolate_route,
 )
+from vehicles.services import delete_vehicles
+from vehicles.services import (
+    EnterpriseExporter,
+)
+
 from django.contrib.gis.geos import Point as GEOSPoint
 
 
@@ -314,23 +319,42 @@ class ManagerVehicleUpdateView(UpdateView):
         return reverse("ui_vehicle_details", kwargs={"pk": self.object.pk})
 
 
-class VehiclesBulkDeleteView(DeleteView):
+# class VehiclesBulkDeleteView(DeleteView):
+#
+#     def post(self, request, *args, **kwargs):
+#         vehicle_ids = request.POST.getlist("vehicle_ids")
+#         vehicles = Vehicle.objects.filter(id__in=vehicle_ids)
+#         enterprise_id = request.user.managers.enterprises.first().id
+#         if vehicle_ids:
+#             if vehicles.filter(driver__isnull=False).exists():
+#                 messages.warning(
+#                     request, "Нельзя удалить автомобили, к которым назначен водитель"
+#                 )
+#                 return redirect(request.META.get("HTTP_REFERER", "/"))
+#             deleted_count = vehicles.count()
+#             vehicles.delete()
+#             messages.success(request, f"{deleted_count} автомобилей удалено.")
+#         else:
+#             messages.warning(request, "Выберите хотя бы один автомобиль.")
+#         return redirect(request.META.get("HTTP_REFERER", "/"))
+
+class VehiclesBulkDeleteView(View):
 
     def post(self, request, *args, **kwargs):
+
         vehicle_ids = request.POST.getlist("vehicle_ids")
-        vehicles = Vehicle.objects.filter(id__in=vehicle_ids)
-        enterprise_id = request.user.managers.enterprises.first().id
-        if vehicle_ids:
-            if vehicles.filter(driver__isnull=False).exists():
-                messages.warning(
-                    request, "Нельзя удалить автомобили, к которым назначен водитель"
-                )
-                return redirect(request.META.get("HTTP_REFERER", "/"))
-            deleted_count = vehicles.count()
-            vehicles.delete()
-            messages.success(request, f"{deleted_count} автомобилей удалено.")
-        else:
-            messages.warning(request, "Выберите хотя бы один автомобиль.")
+
+        try:
+            deleted_count = delete_vehicles(vehicle_ids)
+
+            messages.success(
+                request,
+                f"{deleted_count} автомобилей удалено."
+            )
+
+        except Exception as e:
+            messages.warning(request, str(e))
+
         return redirect(request.META.get("HTTP_REFERER", "/"))
 
 
@@ -693,180 +717,35 @@ class VehicleTripPointsView(LoginRequiredMixin, View):
 
 class EnterpriseExportView(View):
 
+    exporter = EnterpriseExporter()
+
     def get(self, request, enterprise_id):
-        format_type = request.GET.get("format", "csv")
-
-        enterprise = get_object_or_404(Enterprise, id=enterprise_id)
-
-        vehicles = (
-            Vehicle.objects.filter(enterprise=enterprise)
-            .select_related("brand")
-            .prefetch_related("drivers")
+        format_type = request.GET.get(
+            "format",
+            "csv",
         )
 
         if format_type == "json":
-            return self.export_json(vehicles, enterprise)
+            content, content_type = (
+                self.exporter.export_json(enterprise_id)
+            )
+            ext = "json"
 
-        return self.export_csv(vehicles, enterprise)
-
-    def export_json(self, vehicles, enterprise):
-        drivers_map = {}
-        brands_map = {}
-        vehicles_data = []
-        trips_data = []
-
-        for vehicle in vehicles:
-            vehicle_guid = make_guid('Vehicle', vehicle.id)
-
-            # Brand
-            if vehicle.brand:
-                brand_guid = make_guid('Brand', vehicle.brand.id)
-                brands_map[brand_guid] = {
-                    "id": brand_guid,
-                    "product_name": vehicle.brand.product_name,
-                    "car_class": vehicle.brand.car_class,
-                    "fuel_tank_capacity": vehicle.brand.fuel_tank_capacity,
-                    "maximum_load_kg": vehicle.brand.maximum_load_kg,
-                    "country_of_origin": vehicle.brand.country_of_origin,
-                    "number_of_passengers": vehicle.brand.number_of_passengers,
-                }
-            else:
-                brand_guid = None
-
-            # Drivers
-            driver_guids = []
-            for driver in vehicle.drivers.all():
-                d_guid = make_guid('Driver', driver.id)
-                drivers_map[d_guid] = {
-                    "id": d_guid,
-                    "full_name": driver.full_name,
-                    "salary": driver.salary,
-                    "is_active": driver.is_active,
-                }
-                driver_guids.append(d_guid)
-
-            # Vehicle
-            vehicles_data.append({
-                "id": vehicle_guid,
-                "production_date": vehicle.prod_date.isoformat() if vehicle.prod_date else None,
-                "purchase_date": vehicle.car_purchase_time.isoformat() if vehicle.car_purchase_time else None,
-                "odometer": vehicle.odometer,
-                "price": vehicle.price,
-                "color": vehicle.color,
-                "plate_number": vehicle.plate_number,
-                "brand_id": brand_guid,
-                "enterprise_id": make_guid('Enterprise', enterprise.id),
-                "drivers": driver_guids,
-            })
-
-            # Trips
-            trips = VehicleTrip.objects.filter(vehicle=vehicle)
-            for trip in trips:
-                trips_data.append({
-                    "id": make_guid('VehicleTrip', trip.id),
-                    "vehicle_id": vehicle_guid,
-                    "start_timestamp": trip.start_timestamp.isoformat() if trip.start_timestamp else None,
-                    "end_timestamp": trip.end_timestamp.isoformat() if trip.end_timestamp else None,
-                })
-
-        payload = {
-            "enterprise": {
-                "id": make_guid('Enterprise', enterprise.id),
-                "name": enterprise.name,
-                "city": enterprise.city,
-                "timezone": enterprise.timezone,
-            },
-            "brands": list(brands_map.values()),
-            "drivers": list(drivers_map.values()),
-            "vehicles": vehicles_data,
-            "vehicle_trips": trips_data,
-        }
+        else:
+            content, content_type = (
+                self.exporter.export_csv(enterprise_id)
+            )
+            ext = "csv"
 
         response = HttpResponse(
-            json.dumps(payload, indent=4, ensure_ascii=False, cls=DjangoJSONEncoder),
-            content_type="application/json; charset=utf-8",
+            content=content,
+            content_type=content_type,
         )
-        response["Content-Disposition"] = f'attachment; filename="enterprise_{enterprise.id}.json"'
-        return response
 
-    def export_csv(self, vehicles, enterprise):
-        response = HttpResponse(content_type="text/csv; charset=utf-8-sig")
-        response["Content-Disposition"] = f'attachment; filename="enterprise_{enterprise.id}.csv"'
-        writer = csv.writer(response, lineterminator="\n")
-
-        writer.writerow([
-            "vehicle_guid",
-            "production_date",
-            "purchase_date",
-            "odometer",
-            "price",
-            "color",
-            "plate_number",
-            "brand_guid",
-            "enterprise_guid",
-            "driver_guids"
-        ])
-
-        for vehicle in vehicles:
-            vehicle_guid = make_guid('Vehicle', vehicle.id)
-            brand_guid = make_guid('Brand', vehicle.brand.id) if vehicle.brand else ""
-            enterprise_guid = make_guid('Enterprise', enterprise.id)
-            driver_guids = [str(make_guid('Driver', d.id)) for d in vehicle.drivers.all()]
-
-            writer.writerow([
-                vehicle_guid,
-                vehicle.prod_date.isoformat() if vehicle.prod_date else "",
-                vehicle.car_purchase_time.isoformat() if vehicle.car_purchase_time else "",
-                vehicle.odometer,
-                vehicle.price,
-                vehicle.color,
-                vehicle.plate_number,
-                brand_guid,
-                enterprise_guid,
-                ", ".join(driver_guids),
-            ])
-
-        return response
-
-    def export_csv(self, vehicles, enterprise):
-        response = HttpResponse(content_type="text/csv; charset=utf-8-sig")
         response["Content-Disposition"] = (
-            f'attachment; filename="enterprise_{enterprise.id}.csv"'
+            f'attachment; '
+            f'filename="enterprise_{enterprise_id}.{ext}"'
         )
-
-        writer = csv.writer(response, lineterminator="\n")
-
-        writer.writerow(
-            [   "guid",
-                "Дата изготовления",
-                "Дата покупки",
-                "Пробег, км",
-                "Цена, руб",
-                "Цвет",
-                "Номер",
-                "Марка",
-                "Предприятие",
-                "Водители",
-            ]
-        )
-
-        for vehicle in vehicles:
-            writer.writerow(
-                [
-                    make_guid('Vehicle', vehicle.id),
-                    vehicle.prod_date,
-                    vehicle.car_purchase_time,
-                    vehicle.odometer,
-                    vehicle.price,
-                    vehicle.color,
-                    vehicle.plate_number,
-                    make_guid('Brand', vehicle.brand.id) if vehicle.brand else "",
-                    make_guid('Enterprise', enterprise.id),
-                    make_guid('Driver', vehicle.driver.id) if vehicle.driver else "",
-                    ", ".join([str(make_guid('Driver', d.id)) for d in vehicle.drivers.all()]),
-
-                ]
-            )
 
         return response
 
