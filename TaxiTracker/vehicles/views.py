@@ -41,7 +41,7 @@ from vehicles.models import (
     WeeklyReport,
     DailyReport,
     RandomReport,
-    MonthlyReport
+    MonthlyReport,
 )
 from vehicles.serializers import (
     VehiclesSerializer,
@@ -56,8 +56,7 @@ from vehicles.serializers import (
     DailyReportSerializer,
     WeeklyReportSerializer,
     MonthlyReportSerializer,
-    RandomReportSerializer
-
+    RandomReportSerializer,
 )
 from vehicles.forms import VehicleForm
 from django.utils.dateparse import parse_datetime
@@ -111,7 +110,11 @@ from vehicles.services.vehicle_importer import (
     UnsupportedFileFormat,
     VehicleImporter,
 )
-
+from vehicles.services.vehicle_trip_importer import (
+    VehicleTripImporter,
+    UnsupportedFileFormat,
+    InvalidImportFile,
+)
 from django.contrib.gis.geos import Point as GEOSPoint
 
 
@@ -353,6 +356,7 @@ class ManagerVehicleUpdateView(UpdateView):
 #             messages.warning(request, "Выберите хотя бы один автомобиль.")
 #         return redirect(request.META.get("HTTP_REFERER", "/"))
 
+
 class VehiclesBulkDeleteView(View):
 
     def post(self, request, *args, **kwargs):
@@ -362,10 +366,7 @@ class VehiclesBulkDeleteView(View):
         try:
             deleted_count = delete_vehicles(vehicle_ids)
 
-            messages.success(
-                request,
-                f"{deleted_count} автомобилей удалено."
-            )
+            messages.success(request, f"{deleted_count} автомобилей удалено.")
 
         except Exception as e:
             messages.warning(request, str(e))
@@ -741,15 +742,11 @@ class EnterpriseExportView(View):
         )
 
         if format_type == "json":
-            content, content_type = (
-                self.exporter.export_json(enterprise_id)
-            )
+            content, content_type = self.exporter.export_json(enterprise_id)
             ext = "json"
 
         else:
-            content, content_type = (
-                self.exporter.export_csv(enterprise_id)
-            )
+            content, content_type = self.exporter.export_csv(enterprise_id)
             ext = "csv"
 
         response = HttpResponse(
@@ -758,8 +755,7 @@ class EnterpriseExportView(View):
         )
 
         response["Content-Disposition"] = (
-            f'attachment; '
-            f'filename="enterprise_{enterprise_id}.{ext}"'
+            f"attachment; " f'filename="enterprise_{enterprise_id}.{ext}"'
         )
 
         return response
@@ -803,8 +799,7 @@ class VehicleTripsExportView(View):
         )
 
         response["Content-Disposition"] = (
-            f'attachment; '
-            f'filename="vehicle_{vehicle_id}_trips.{ext}"'
+            f"attachment; " f'filename="vehicle_{vehicle_id}_trips.{ext}"'
         )
 
         return response
@@ -879,22 +874,16 @@ class VehicleImportView(View):
 
         try:
 
-            result = (
-                self.importer.import_file(
-                    file=file,
-                    enterprise_id=pk,
-                )
+            result = self.importer.import_file(
+                file=file,
+                enterprise_id=pk,
             )
 
         except UnsupportedFileFormat:
 
             messages.error(
                 request,
-                (
-                    "Неподдерживаемый формат "
-                    "файла. "
-                    "Используйте CSV или JSON"
-                ),
+                ("Неподдерживаемый формат " "файла. " "Используйте CSV или JSON"),
             )
 
         except InvalidImportFile:
@@ -916,21 +905,14 @@ class VehicleImportView(View):
 
                 messages.success(
                     request,
-                    (
-                        f"Импортировано "
-                        f"{result['count']} "
-                        f"автомобилей"
-                    ),
+                    (f"Импортировано " f"{result['count']} " f"автомобилей"),
                 )
 
             else:
 
                 messages.warning(
                     request,
-                    (
-                        "Не удалось импортировать "
-                        "ни одного автомобиля"
-                    ),
+                    ("Не удалось импортировать " "ни одного автомобиля"),
                 )
 
         return redirect(
@@ -940,82 +922,35 @@ class VehicleImportView(View):
 
 
 class VehicleTripImportView(View):
+
+    importer = VehicleTripImporter()
+
     def post(self, request, pk):
         vehicle = get_object_or_404(Vehicle, pk=pk)
         file = request.FILES.get("file")
+
         if not file:
             messages.error(request, "Файл не выбран")
             return redirect("ui_vehicle_details", pk=vehicle.id)
 
         try:
-            # Загружаем данные
-            if file.name.endswith(".json"):
-                rows = json.load(file)
-            elif file.name.endswith(".csv"):
-                decoded = file.read().decode("utf-8").splitlines()
-                rows = list(csv.DictReader(decoded))
-            else:
-                messages.error(request, "Неподдерживаемый формат")
-                return redirect("ui_vehicle_details", pk=vehicle.id)
+            result = self.importer.import_file(
+                file=file,
+                vehicle=vehicle,
+            )
 
-            created = 0
-
-            for row in rows:
-                points_data = row.get("points") or []
-
-                if not points_data and ("lat" in row or "address" in row):
-                    points_data = [row]
-
-                processed_points = []
-
-                for p in points_data:
-                    timestamp = parse_datetime(p.get("timestamp"))
-                    if not timestamp:
-                        continue
-
-                    lat = p.get("lat")
-                    lng = p.get("lng")
-
-                    if (lat is None or lng is None) and p.get("address"):
-                        lat, lng = geocode_address(p["address"])
-                        if lat is None or lng is None:
-                            continue
-
-                    if lat is None or lng is None:
-                        continue
-
-                    processed_points.append(
-                        {"lat": float(lat), "lng": float(lng), "timestamp": timestamp}
-                    )
-
-                if not processed_points:
-                    messages.warning(request, "Пропущена поездка без точек")
-                    continue
-
-                processed_points.sort(key=lambda x: x["timestamp"])
-
-                trip = VehicleTrip.objects.create(
-                    vehicle=vehicle,
-                    start_timestamp=processed_points[0]["timestamp"],
-                    end_timestamp=processed_points[-1]["timestamp"],
-                )
-
-                track_points = [
-                    VehicleTrackPoint(
-                        vehicle=vehicle,
-                        point=GEOSPoint(p["lng"], p["lat"], srid=4326),
-                        timestamp=p["timestamp"],
-                    )
-                    for p in processed_points
-                ]
-                VehicleTrackPoint.objects.bulk_create(track_points)
-
-                created += 1
-
-            messages.success(request, f"Импортировано поездок: {created}")
+        except UnsupportedFileFormat:
+            messages.error(request, "Неподдерживаемый формат")
+            return redirect("ui_vehicle_details", pk=vehicle.id)
 
         except Exception as e:
-            messages.error(request, f"Ошибка импорта: {str(e)}")
+            messages.error(request, f"Ошибка импорта: {e}")
+            return redirect("ui_vehicle_details", pk=vehicle.id)
+
+        messages.success(
+            request,
+            f"Импортировано поездок: {result['created']}",
+        )
 
         return redirect("ui_vehicle_details", pk=vehicle.id)
 
@@ -1043,7 +978,7 @@ class BaseReportAPIView(APIView):
 
         qs = VehicleTrackPoint.objects.filter(
             vehicle_id__in=vehicle_ids,
-            vehicle__enterprise__in=manager.enterprises.all()
+            vehicle__enterprise__in=manager.enterprises.all(),
         )
 
         if start and end:
@@ -1109,22 +1044,26 @@ class DailyReportAPIView(BaseReportAPIView):
 
             vehicle_points = points.filter(vehicle_id=vid)
             if not vehicle_points.exists():
-                results.append({
-                    "vehicle": vehicle.plate_number,
-                    "duration": "-",
-                    "value": 0,
-                    "report_type": report_type
-                })
+                results.append(
+                    {
+                        "vehicle": vehicle.plate_number,
+                        "duration": "-",
+                        "value": 0,
+                        "report_type": report_type,
+                    }
+                )
                 continue
 
             daily_points = self.group_by_day(vehicle_points)
             for day, pts in daily_points.items():
-                results.append({
-                    "vehicle": vehicle.plate_number,
-                    "duration": str(day),
-                    "value": round(self.calculate_distance(pts), 2),
-                    "report_type": report_type
-                })
+                results.append(
+                    {
+                        "vehicle": vehicle.plate_number,
+                        "duration": str(day),
+                        "value": round(self.calculate_distance(pts), 2),
+                        "report_type": report_type,
+                    }
+                )
         return Response(results)
 
 
@@ -1146,12 +1085,14 @@ class WeeklyReportAPIView(BaseReportAPIView):
 
             vehicle_points = points.filter(vehicle_id=vid)
             if not vehicle_points.exists():
-                results.append({
-                    "vehicle": vehicle.plate_number,
-                    "duration": "-",
-                    "value": 0,
-                    "report_type": report_type
-                })
+                results.append(
+                    {
+                        "vehicle": vehicle.plate_number,
+                        "duration": "-",
+                        "value": 0,
+                        "report_type": report_type,
+                    }
+                )
                 continue
 
             daily_points = self.group_by_day(vehicle_points)
@@ -1161,12 +1102,14 @@ class WeeklyReportAPIView(BaseReportAPIView):
                 weekly.setdefault(week_start, []).extend(pts)
 
             for week_start, pts in weekly.items():
-                results.append({
-                    "vehicle": vehicle.plate_number,
-                    "duration": f"{week_start} - {week_start + timedelta(days=6)}",
-                    "value": round(self.calculate_distance(pts), 2),
-                    "report_type": report_type
-                })
+                results.append(
+                    {
+                        "vehicle": vehicle.plate_number,
+                        "duration": f"{week_start} - {week_start + timedelta(days=6)}",
+                        "value": round(self.calculate_distance(pts), 2),
+                        "report_type": report_type,
+                    }
+                )
 
         return Response(results)
 
@@ -1189,12 +1132,14 @@ class MonthlyReportAPIView(BaseReportAPIView):
 
             vehicle_points = points.filter(vehicle_id=vid)
             if not vehicle_points.exists():
-                results.append({
-                    "vehicle": vehicle.plate_number,
-                    "duration": "-",
-                    "value": 0,
-                    "report_type": report_type
-                })
+                results.append(
+                    {
+                        "vehicle": vehicle.plate_number,
+                        "duration": "-",
+                        "value": 0,
+                        "report_type": report_type,
+                    }
+                )
                 continue
 
             monthly = {}
@@ -1203,12 +1148,14 @@ class MonthlyReportAPIView(BaseReportAPIView):
                 monthly.setdefault(month_key, []).append(p)
 
             for month, pts in monthly.items():
-                results.append({
-                    "vehicle": vehicle.plate_number,
-                    "duration": month,
-                    "value": round(self.calculate_distance(pts), 2),
-                    "report_type": report_type
-                })
+                results.append(
+                    {
+                        "vehicle": vehicle.plate_number,
+                        "duration": month,
+                        "value": round(self.calculate_distance(pts), 2),
+                        "report_type": report_type,
+                    }
+                )
 
         return Response(results)
 
@@ -1221,7 +1168,7 @@ class RandomReportAPIView(BaseReportAPIView):
             return points
 
         results = []
-        vehicles = set(points.values_list('vehicle_id', flat=True))
+        vehicles = set(points.values_list("vehicle_id", flat=True))
 
         for vid in vehicles:
             try:
@@ -1231,25 +1178,31 @@ class RandomReportAPIView(BaseReportAPIView):
 
             vehicle_points = points.filter(vehicle_id=vid)
             if not vehicle_points.exists():
-                results.append({
-                    "vehicle": vehicle.plate_number,
-                    "duration": "-",
-                    "value": 0,
-                    "report_type": metric
-                })
+                results.append(
+                    {
+                        "vehicle": vehicle.plate_number,
+                        "duration": "-",
+                        "value": 0,
+                        "report_type": metric,
+                    }
+                )
                 continue
 
             if metric == "average_per_day":
                 daily_points = self.group_by_day(vehicle_points)
-                total_distance = sum(self.calculate_distance(pts) for pts in daily_points.values())
+                total_distance = sum(
+                    self.calculate_distance(pts) for pts in daily_points.values()
+                )
                 days = len(daily_points)
                 avg = total_distance / days if days else 0
-                results.append({
-                    "vehicle": vehicle.plate_number,
-                    "duration": f"{days} дня/дней",
-                    "value": round(avg, 2),
-                    "report_type": "Средний пробег в день"
-                })
+                results.append(
+                    {
+                        "vehicle": vehicle.plate_number,
+                        "duration": f"{days} дня/дней",
+                        "value": round(avg, 2),
+                        "report_type": "Средний пробег в день",
+                    }
+                )
 
             elif metric == "max_day":
                 daily_points = self.group_by_day(vehicle_points)
@@ -1260,24 +1213,27 @@ class RandomReportAPIView(BaseReportAPIView):
                     if dist > max_dist:
                         max_dist = dist
                         max_day = day
-                results.append({
-                    "vehicle": vehicle.plate_number,
-                    "duration": str(max_day),
-                    "value": round(max_dist, 2),
-                    "report_type": "День с максимальным пробегом"
-                })
+                results.append(
+                    {
+                        "vehicle": vehicle.plate_number,
+                        "duration": str(max_day),
+                        "value": round(max_dist, 2),
+                        "report_type": "День с максимальным пробегом",
+                    }
+                )
 
             elif metric == "total_distance":
                 dist = self.calculate_distance(vehicle_points)
-                results.append({
-                    "vehicle": vehicle.plate_number,
-                    "duration": f"{vehicle_points.first().timestamp.date() if vehicle_points.exists() else ''} - {vehicle_points.last().timestamp.date() if vehicle_points.exists() else ''}",
-                    "value": round(dist, 2),
-                    "report_type": "Общий пробег"
-                })
+                results.append(
+                    {
+                        "vehicle": vehicle.plate_number,
+                        "duration": f"{vehicle_points.first().timestamp.date() if vehicle_points.exists() else ''} - {vehicle_points.last().timestamp.date() if vehicle_points.exists() else ''}",
+                        "value": round(dist, 2),
+                        "report_type": "Общий пробег",
+                    }
+                )
 
         return Response(results)
-
 
 
 class BaseReportTelegramAPIView(APIView):
@@ -1299,7 +1255,7 @@ class BaseReportTelegramAPIView(APIView):
 
         qs = VehicleTrackPoint.objects.filter(
             vehicle__plate_number__in=vehicle_pns,
-            vehicle__enterprise__in=manager.enterprises.all()
+            vehicle__enterprise__in=manager.enterprises.all(),
         )
 
         if start and end:
@@ -1365,23 +1321,28 @@ class DailyReportTelegramAPIView(BaseReportTelegramAPIView):
 
             vehicle_points = points.filter(vehicle__plate_number=pns)
             if not vehicle_points.exists():
-                results.append({
-                    "vehicle": vehicle.plate_number,
-                    "duration": "-",
-                    "value": 0,
-                    "report_type": report_type
-                })
+                results.append(
+                    {
+                        "vehicle": vehicle.plate_number,
+                        "duration": "-",
+                        "value": 0,
+                        "report_type": report_type,
+                    }
+                )
                 continue
 
             daily_points = self.group_by_day(vehicle_points)
             for day, pts in daily_points.items():
-                results.append({
-                    "vehicle": vehicle.plate_number,
-                    "duration": str(day),
-                    "value": round(self.calculate_distance(pts), 0),
-                    "report_type": report_type
-                })
+                results.append(
+                    {
+                        "vehicle": vehicle.plate_number,
+                        "duration": str(day),
+                        "value": round(self.calculate_distance(pts), 0),
+                        "report_type": report_type,
+                    }
+                )
         return Response(results)
+
 
 class MonthlyReportTelegramAPIView(BaseReportTelegramAPIView):
     def get(self, request):
@@ -1401,12 +1362,14 @@ class MonthlyReportTelegramAPIView(BaseReportTelegramAPIView):
 
             vehicle_points = points.filter(vehicle__plate_number=pns)
             if not vehicle_points.exists():
-                results.append({
-                    "vehicle": vehicle.plate_number,
-                    "duration": "-",
-                    "value": 0,
-                    "report_type": report_type
-                })
+                results.append(
+                    {
+                        "vehicle": vehicle.plate_number,
+                        "duration": "-",
+                        "value": 0,
+                        "report_type": report_type,
+                    }
+                )
                 continue
 
             monthly = {}
@@ -1415,12 +1378,14 @@ class MonthlyReportTelegramAPIView(BaseReportTelegramAPIView):
                 monthly.setdefault(month_key, []).append(p)
 
             for month, pts in monthly.items():
-                results.append({
-                    "vehicle": vehicle.plate_number,
-                    "duration": month,
-                    "value": round(self.calculate_distance(pts), 0),
-                    "report_type": report_type
-                })
+                results.append(
+                    {
+                        "vehicle": vehicle.plate_number,
+                        "duration": month,
+                        "value": round(self.calculate_distance(pts), 0),
+                        "report_type": report_type,
+                    }
+                )
 
         return Response(results)
 
@@ -1460,9 +1425,7 @@ class BaseFleetReportAPIView(APIView):
         end_dt = datetime.strptime(end, "%Y-%m-%d") + timedelta(days=1)
 
         qs = VehicleTrackPoint.objects.filter(
-            vehicle__in=vehicles,
-            timestamp__gte=start_dt,
-            timestamp__lt=end_dt
+            vehicle__in=vehicles, timestamp__gte=start_dt, timestamp__lt=end_dt
         ).order_by("vehicle__plate_number", "timestamp")
 
         return qs
@@ -1502,12 +1465,14 @@ class BaseFleetReportAPIView(APIView):
             distance += self.calculate_distance(pts)
             if distance == 0 or (limit is not None and distance < limit):
                 continue
-            results.append({
-                "vehicle": plate_number,
-                "duration": str(period),
-                "value": distance,
-                "report_type": self.report_type
-            })
+            results.append(
+                {
+                    "vehicle": plate_number,
+                    "duration": str(period),
+                    "value": distance,
+                    "report_type": self.report_type,
+                }
+            )
         return results
 
 
@@ -1524,7 +1489,9 @@ class EnterpriseDailyReportAPIView(BaseFleetReportAPIView):
             try:
                 limit = float(limit)
             except ValueError:
-                return Response({"detail": "Лимит пробега должен быть числом"}, status=400)
+                return Response(
+                    {"detail": "Лимит пробега должен быть числом"}, status=400
+                )
 
         results = self.build_report(points, limit=limit)
         return Response(results)
@@ -1543,11 +1510,12 @@ class EnterpriseMonthlyReportAPIView(BaseFleetReportAPIView):
             try:
                 limit = float(limit)
             except ValueError:
-                return Response({"detail": "Лимит пробега должен быть числом"}, status=400)
+                return Response(
+                    {"detail": "Лимит пробега должен быть числом"}, status=400
+                )
 
         results = self.build_report(points, limit=limit)
         return Response(results)
-
 
 
 class UserEnterprisesAPIView(APIView):
@@ -1596,11 +1564,13 @@ class ImportGPXView(View):
                             continue
 
                         timestamp = point.time
-                        processed_points.append({
-                            "lat": point.latitude,
-                            "lng": point.longitude,
-                            "timestamp": timestamp
-                        })
+                        processed_points.append(
+                            {
+                                "lat": point.latitude,
+                                "lng": point.longitude,
+                                "timestamp": timestamp,
+                            }
+                        )
 
                     if not processed_points:
                         messages.warning(request, "Сегмент без валидных точек пропущен")
@@ -1620,7 +1590,7 @@ class ImportGPXView(View):
                     if overlap_exists:
                         messages.warning(
                             request,
-                            f"Пропущена поездка ({start_ts} - {end_ts}) — пересечение с существующей"
+                            f"Пропущена поездка ({start_ts} - {end_ts}) — пересечение с существующей",
                         )
                         continue
 
@@ -1652,7 +1622,10 @@ class ImportGPXView(View):
                         )
 
                     if not track_points:
-                        messages.warning(request, "Все точки оказались дубликатами — поездка пропущена")
+                        messages.warning(
+                            request,
+                            "Все точки оказались дубликатами — поездка пропущена",
+                        )
                         trip.delete()
                         continue
 
