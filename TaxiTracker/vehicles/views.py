@@ -101,6 +101,11 @@ from vehicles.services.vehicle_trips_exporter import (
 from vehicles.services.vehicle_service import (
     delete_vehicles,
 )
+from vehicles.services.enterprise_importer import (
+    EnterpriseImporter,
+    InvalidImportFile,
+    UnsupportedFileFormat,
+)
 
 from django.contrib.gis.geos import Point as GEOSPoint
 
@@ -802,81 +807,46 @@ class VehicleTripsExportView(View):
 
 class EnterpriseImportView(LoginRequiredMixin, View):
 
+    importer = EnterpriseImporter()
+
     def post(self, request):
         file = request.FILES.get("file")
+
         if not file:
             messages.error(request, "Файл не выбран")
-            return redirect("enterprise_details")  # редирект на список предприятий
-
-        if file.name.endswith(".csv"):
-            return self.import_csv(file, request)
-        elif file.name.endswith(".json"):
-            return self.import_json(file, request)
-        else:
-            messages.error(
-                request, "Неподдерживаемый формат файла. Используйте CSV или JSON"
-            )
             return redirect("enterprise_details")
 
-    def import_csv(self, file, request):
-        decoded_file = file.read().decode("utf-8").splitlines()
-        reader = csv.DictReader(decoded_file)
-        return self._import_rows(reader, request)
-
-    def import_json(self, file, request):
         try:
-            data = json.load(file)
-        except json.JSONDecodeError:
-            messages.error(request, "Неверный JSON файл")
-            return redirect("enterprise_details")
+            imported_count = self.importer.import_file(
+                file=file,
+                manager=getattr(request.user, "managers", None),
+            )
 
-        if isinstance(data, dict) and "enterprise" in data:
-            data_list = [data["enterprise"]]
-        elif isinstance(data, list):
-            data_list = data
+        except UnsupportedFileFormat:
+            messages.error(
+                request,
+                "Неподдерживаемый формат файла",
+            )
+
+        except InvalidImportFile:
+            messages.error(
+                request,
+                "Файл поврежден или имеет неверный формат",
+            )
+
         else:
-            messages.error(request, "Неверный формат JSON")
-            return redirect("enterprise_details")
-
-        return self._import_rows(data_list, request)
-
-    def _import_rows(self, rows, request):
-
-        manager = getattr(request.user, "managers", None)
-
-        count = 0
-
-        for row in rows:
-            if not isinstance(row, dict):
-                continue
-
-            name = row.get("name")
-            city = row.get("city")
-            timezone = row.get("timezone", "UTC")
-
-            if not name or not city:
-                continue
-
-            if timezone not in dict(ENTERPRISE_TIMEZONES):
-                timezone = "UTC"
-
-            try:
-                enterprise = Enterprise.objects.create(
-                    name=name, city=city, timezone=timezone
+            if imported_count:
+                messages.success(
+                    request,
+                    f"Импортировано {imported_count} предприятий",
                 )
-                count += 1
-                if manager:
-                    manager.enterprises.add(enterprise)
+            else:
+                messages.warning(
+                    request,
+                    "Не удалось импортировать ни одного предприятия",
+                )
 
-            except ValidationError:
-                continue
-
-        if count:
-            messages.success(request, f"Импортировано {count} предприятий")
-            return redirect("enterprise_details")
-        else:
-            messages.warning(request, "Не удалось импортировать ни одного предприятия")
-            return redirect("enterprise_details")
+        return redirect("enterprise_details")
 
 
 class VehicleImportView(View):
