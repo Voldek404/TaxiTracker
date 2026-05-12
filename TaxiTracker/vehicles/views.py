@@ -106,6 +106,11 @@ from vehicles.services.enterprise_importer import (
     InvalidImportFile,
     UnsupportedFileFormat,
 )
+from vehicles.services.vehicle_importer import (
+    InvalidImportFile,
+    UnsupportedFileFormat,
+    VehicleImporter,
+)
 
 from django.contrib.gis.geos import Point as GEOSPoint
 
@@ -850,83 +855,88 @@ class EnterpriseImportView(LoginRequiredMixin, View):
 
 
 class VehicleImportView(View):
-    def post(self, request, pk):
+
+    importer = VehicleImporter()
+
+    def post(
+        self,
+        request,
+        pk,
+    ):
         file = request.FILES.get("file")
+
         if not file:
-            messages.error(request, "Выберите файл для импорта")
-            return redirect("vehicles", pk=pk)
 
-        if file.name.endswith(".csv"):
-            return self.import_csv(file, request, pk)
-        elif file.name.endswith(".json"):
-            return self.import_json(file, request, pk)
-        else:
             messages.error(
-                request, "Неподдерживаемый формат файла. Используйте CSV или JSON"
+                request,
+                "Выберите файл для импорта",
             )
-            return redirect("vehicles", pk=pk)
 
-    def import_csv(self, file, request, pk):
-        decoded_file = file.read().decode("utf-8").splitlines()
-        reader = csv.DictReader(decoded_file)
-        return self._import_rows(reader, request, pk)
+            return redirect(
+                "vehicles",
+                pk=pk,
+            )
 
-    def import_json(self, file, request, pk):
         try:
-            data = json.load(file)
-        except json.JSONDecodeError:
-            messages.error(request, "Неверный JSON файл")
-            return redirect("vehicles", pk=pk)
-        if isinstance(data, dict) and "vehicle" in data:
-            data_list = [data["vehicle"]]
-        elif isinstance(data, list):
-            data_list = data
+
+            result = (
+                self.importer.import_file(
+                    file=file,
+                    enterprise_id=pk,
+                )
+            )
+
+        except UnsupportedFileFormat:
+
+            messages.error(
+                request,
+                (
+                    "Неподдерживаемый формат "
+                    "файла. "
+                    "Используйте CSV или JSON"
+                ),
+            )
+
+        except InvalidImportFile:
+
+            messages.error(
+                request,
+                "Неверный или поврежденный файл",
+            )
+
         else:
-            messages.error(request, "Неверный формат JSON")
-            return redirect("vehicles", pk=pk)
 
-        return self._import_rows(data_list, request, pk)
-
-    def _import_rows(self, rows, request, enterprise_id):
-        count = 0
-
-        for row in rows:
-            if not isinstance(row, dict):
-                continue
-
-            brand_name = row.get("brand")
-            if not brand_name:
-                continue
-            try:
-                brand = Brand.objects.get(product_name=brand_name)
-            except Brand.DoesNotExist:
+            for warning in result["warnings"]:
                 messages.warning(
-                    request, f"Бренд '{brand_name}' не найден. Автомобиль пропущен."
+                    request,
+                    warning,
                 )
-                continue
 
-            try:
-                Vehicle.objects.create(
-                    prod_date=row.get("prod_date"),
-                    car_purchase_time=row.get("car_purchase_time"),
-                    odometer=row.get("odometer", 0),
-                    price=row.get("price", 0),
-                    color=row.get("color"),
-                    plate_number=row.get("plate_number"),
-                    brand=brand,  # ← теперь это инстанс
-                    enterprise_id=enterprise_id,
+            if result["count"]:
+
+                messages.success(
+                    request,
+                    (
+                        f"Импортировано "
+                        f"{result['count']} "
+                        f"автомобилей"
+                    ),
                 )
-                count += 1
 
-            except Exception:
-                continue
+            else:
 
-        if count:
-            messages.success(request, f"Импортировано {count} автомобилей")
-        else:
-            messages.warning(request, "Не удалось импортировать ни одного автомобиля")
+                messages.warning(
+                    request,
+                    (
+                        "Не удалось импортировать "
+                        "ни одного автомобиля"
+                    ),
+                )
 
-        return redirect("vehicles", pk=enterprise_id)
+        return redirect(
+            "vehicles",
+            pk=pk,
+        )
 
 
 class VehicleTripImportView(View):
