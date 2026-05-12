@@ -92,9 +92,14 @@ from vehicles.services.geocoding import (
     build_route,
     interpolate_route,
 )
-from vehicles.services import delete_vehicles
-from vehicles.services import (
+from vehicles.services.enterprise_exporter import (
     EnterpriseExporter,
+)
+from vehicles.services.vehicle_trips_exporter import (
+    VehicleTripsExporter,
+)
+from vehicles.services.vehicle_service import (
+    delete_vehicles,
 )
 
 from django.contrib.gis.geos import Point as GEOSPoint
@@ -752,71 +757,45 @@ class EnterpriseExportView(View):
 
 class VehicleTripsExportView(View):
 
+    exporter = VehicleTripsExporter()
+
     def get(self, request, vehicle_id):
+
+        if not hasattr(request.user, "managers"):
+            return JsonResponse(
+                {"detail": "Нет доступа"},
+                status=403,
+            )
+
         format_type = request.GET.get("format", "csv")
         start = request.GET.get("start")
         end = request.GET.get("end")
 
-        vehicle = get_object_or_404(Vehicle, id=vehicle_id)
-
-        user = request.user
-        if not hasattr(user, "managers"):
-            return JsonResponse({"detail": "Нет доступа"}, status=403)
-        manager = user.managers
-
-        trips = VehicleTrip.objects.filter(vehicle=vehicle)
-        if start:
-            trips = trips.filter(start_timestamp__gte=start)
-        if end:
-            trips = trips.filter(end_timestamp__lte=end)
-
         if format_type == "json":
-            return self.export_json(trips, vehicle)
-        return self.export_csv(trips, vehicle)
-
-    def export_json(self, trips, vehicle):
-        data = []
-        for trip in trips:
-            data.append(
-                {
-                    "id": make_guid('Trip', trip.id),
-                    "start_timestamp": trip.start_timestamp,
-                    "end_timestamp": trip.end_timestamp,
-                    "vehicle_id": make_guid('Vehicle', vehicle.id),
-                    "vehicle_plate": vehicle.plate_number,
-                }
+            content, content_type = self.exporter.export_json(
+                vehicle_id=vehicle_id,
+                start=start,
+                end=end,
             )
+            ext = "json"
 
-        payload = {"vehicle": vehicle.plate_number, "trips": data}
+        else:
+            content, content_type = self.exporter.export_csv(
+                vehicle_id=vehicle_id,
+                start=start,
+                end=end,
+            )
+            ext = "csv"
 
         response = HttpResponse(
-            json.dumps(payload, indent=4, ensure_ascii=False, cls=DjangoJSONEncoder),
-            content_type="application/json; charset=utf-8",
+            content=content,
+            content_type=content_type,
         )
+
         response["Content-Disposition"] = (
-            f'attachment; filename="vehicle_{vehicle.id}_trips.json"'
+            f'attachment; '
+            f'filename="vehicle_{vehicle_id}_trips.{ext}"'
         )
-        return response
-
-    def export_csv(self, trips, vehicle):
-        response = HttpResponse(content_type="text/csv; charset=utf-8")
-        response["Content-Disposition"] = (
-            f'attachment; filename="vehicle_{vehicle.id}_trips.csv"'
-        )
-
-        writer = csv.writer(response)
-        writer.writerow(["ID", "Start", "End", "Vehicle ID", "Vehicle Plate"])
-
-        for trip in trips:
-            writer.writerow(
-                [
-                    make_guid('Trip', trip.id),
-                    trip.start_timestamp,
-                    trip.end_timestamp,
-                    make_guid('Vehicle', vehicle.id),
-                    vehicle.plate_number,
-                ]
-            )
 
         return response
 
