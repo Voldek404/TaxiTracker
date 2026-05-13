@@ -5,7 +5,7 @@ import json
 
 from django.core.exceptions import ValidationError
 
-from vehicles.choices import ENTERPRISE_TIMEZONES
+from vehicles.models import ENTERPRISE_TIMEZONES
 from vehicles.models import Enterprise
 
 

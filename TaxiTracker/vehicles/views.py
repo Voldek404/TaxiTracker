@@ -97,7 +97,7 @@ from vehicles.services.enterprise_exporter import (
 from vehicles.services.vehicle_trips_exporter import (
     VehicleTripsExporter,
 )
-from vehicles.services.vehicle_service import (
+from vehicles.services.delete_vehicles import (
     delete_vehicles,
 )
 from vehicles.services.enterprise_importer import (
@@ -115,6 +115,11 @@ from vehicles.services.vehicle_trip_importer import (
     UnsupportedFileFormat,
     InvalidImportFile,
 )
+from vehicles.selectors.vehicle import (
+    get_manager_vehicles,
+)
+from vehicles.selectors.brand import get_user_brands
+
 from django.contrib.gis.geos import Point as GEOSPoint
 
 
@@ -186,9 +191,9 @@ class ManagerDashboardView(ListView):
     context_object_name = "enterprises"
 
     def get_queryset(self):
-        user = self.request.user
-        if hasattr(user, "managers"):
-            return user.managers.enterprises.all()
+        return get_user_enterprises(
+            self.request.user,
+        )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -407,12 +412,21 @@ class VehiclesApiView(generics.ListCreateAPIView):
         return super().dispatch(*args, **kwargs)
 
     def get_queryset(self):
-        user = self.request.user
-        if hasattr(user, "managers"):
-            return Vehicle.objects.filter(
-                enterprise__in=user.managers.enterprises.all()
+
+        manager = getattr(
+            self.request.user,
+            "managers",
+            None,
+        )
+
+        if not manager:
+            raise PermissionDenied(
+                "У вас нет прав на просмотр",
             )
-        raise PermissionDenied("У вас нет прав на просмотр")
+
+        return get_manager_vehicles(
+            manager,
+        )
 
 
 class VehiclesDetailApiView(generics.RetrieveUpdateDestroyAPIView):
@@ -439,19 +453,23 @@ class VehiclesDetailApiView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class BrandsApiView(generics.ListCreateAPIView):
-    queryset = Brand.objects.all()
+
     serializer_class = BrandsSerializer
     permission_classes = [DjangoModelPermissions]
     authentication_classes = [JWTAuthentication]
     pagination_class = MyPagination
 
     def get_queryset(self):
+
         user = self.request.user
-        if hasattr(user, "managers"):
-            return Vehicle.objects.filter(
-                enterprise__in=user.managers.enterprises.all()
+        manager = getattr(user, "managers", None)
+
+        if not manager:
+            raise PermissionDenied(
+                "У вас нет прав на просмотр"
             )
-        raise PermissionDenied("У вас нет прав на просмотр")
+
+        return get_user_brands(user)
 
 
 class DriversApiView(generics.ListCreateAPIView):

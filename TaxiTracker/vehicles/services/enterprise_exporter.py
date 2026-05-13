@@ -10,7 +10,7 @@ from vehicles.models import (
     Vehicle,
 )
 
-from core.utils import make_guid
+from vehicles.export_utils import make_guid
 
 
 class EnterpriseExporter:
