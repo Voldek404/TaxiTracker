@@ -1,6 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional
-from typing import Any
+from datetime import datetime
 
 
 @dataclass(slots=True)
