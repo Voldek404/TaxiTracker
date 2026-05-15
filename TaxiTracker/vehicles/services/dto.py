@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Optional
+from typing import Any
 
 
 @dataclass(slots=True)
@@ -18,3 +19,18 @@ class VehicleImportDTO:
     price: int = 0
     color: str | None = None
     plate_number: str | None = None
+
+
+@dataclass(slots=True)
+class RawPointDTO:
+    lat: float | None = None
+    lng: float | None = None
+    address: str | None = None
+    timestamp: str | None = None
+
+
+@dataclass(slots=True)
+class ProcessedPointDTO:
+    lat: float
+    lng: float
+    timestamp: datetime
