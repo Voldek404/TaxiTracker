@@ -1,5 +1,3 @@
-# services/enterprise_importer.py
-
 import csv
 import json
 
@@ -7,6 +5,8 @@ from django.core.exceptions import ValidationError
 
 from vehicles.models import ENTERPRISE_TIMEZONES
 from vehicles.models import Enterprise
+
+from vehicles.services.dto import EnterpriseImportDTO
 
 
 class UnsupportedFileFormat(Exception):
@@ -83,7 +83,12 @@ class EnterpriseImporter:
             if not isinstance(row, dict):
                 continue
 
-            enterprise = self._create_enterprise(row)
+            dto = self._build_dto(row)
+
+            if not dto:
+                continue
+
+            enterprise = self._create_enterprise(dto)
 
             if not enterprise:
                 continue
@@ -95,26 +100,40 @@ class EnterpriseImporter:
 
         return imported_count
 
-    def _create_enterprise(self, row):
+    def _build_dto(
+        self,
+        row,
+    ) -> EnterpriseImportDTO | None:
 
         name = row.get("name")
         city = row.get("city")
+
+        if not name or not city:
+            return None
+
         timezone = row.get(
             "timezone",
             "UTC",
         )
 
-        if not name or not city:
-            return None
-
         if timezone not in dict(ENTERPRISE_TIMEZONES):
             timezone = "UTC"
 
+        return EnterpriseImportDTO(
+            name=name,
+            city=city,
+            timezone=timezone,
+        )
+
+    def _create_enterprise(
+        self,
+        dto: EnterpriseImportDTO,
+    ):
         try:
             return Enterprise.objects.create(
-                name=name,
-                city=city,
-                timezone=timezone,
+                name=dto.name,
+                city=dto.city,
+                timezone=dto.timezone,
             )
 
         except ValidationError:

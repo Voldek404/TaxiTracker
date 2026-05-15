@@ -119,6 +119,10 @@ from vehicles.selectors.vehicle import (
     get_manager_vehicles,
 )
 from vehicles.selectors.brand import get_user_brands
+from vehicles.selectors.enterprise import (
+    get_user_enterprises,
+)
+
 
 from django.contrib.gis.geos import Point as GEOSPoint
 
@@ -307,10 +311,6 @@ class ManagerVehicleUpdateView(UpdateView):
         )
 
         context["available_drivers"] = drivers
-
-        # -----------------------
-        # ФИЛЬТР ПО ДАТАМ
-        # -----------------------
         start = self.request.GET.get("start")
         end = self.request.GET.get("end")
 
@@ -527,10 +527,10 @@ class EnterprisesDetailApiView(generics.RetrieveUpdateDestroyAPIView):
     authentication_classes = [JWTAuthentication]
 
     def get_queryset(self):
-        user = self.request.user
-        if hasattr(user, "managers"):
-            return user.managers.enterprises.all()
-        raise PermissionDenied("У вас нет прав на просмотр")
+
+        return get_user_enterprises(
+            self.request.user,
+        )
 
 
 class ManagersApiView(generics.ListCreateAPIView):
