@@ -1,16 +1,14 @@
-from dataclasses import dataclass
 from datetime import datetime
+from pydantic import BaseModel
 
 
-@dataclass(slots=True)
-class EnterpriseImportDTO:
+class EnterpriseImportDTO(BaseModel):
     name: str
     city: str
     timezone: str = "UTC"
 
 
-@dataclass(slots=True)
-class VehicleImportDTO:
+class VehicleImportDTO(BaseModel):
     brand: str
     prod_date: str | None = None
     car_purchase_time: str | None = None
@@ -20,16 +18,14 @@ class VehicleImportDTO:
     plate_number: str | None = None
 
 
-@dataclass(slots=True)
-class RawPointDTO:
+class RawPointDTO(BaseModel):
     lat: float | None = None
     lng: float | None = None
     address: str | None = None
     timestamp: str | None = None
 
 
-@dataclass(slots=True)
-class ProcessedPointDTO:
+class ProcessedPointDTO(BaseModel):
     lat: float
     lng: float
     timestamp: datetime

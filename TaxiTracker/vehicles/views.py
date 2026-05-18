@@ -83,6 +83,7 @@ from rest_framework.renderers import JSONRenderer
 from django.http import HttpResponse
 from datetime import datetime, timedelta, date
 from collections import defaultdict
+from vehicles.permissions import IsManager,HasEnterpriseAccess, HasTripAccess, CanDeleteVehicle
 
 
 from vehicles.serializers import VehicleTripSerializer
@@ -432,22 +433,16 @@ class VehiclesApiView(generics.ListCreateAPIView):
 class VehiclesDetailApiView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Vehicle.objects.all()
     serializer_class = VehiclesSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsManager, CanDeleteVehicle]
     authentication_classes = [JWTAuthentication]
 
     def get_object(self):
         user = self.request.user
-        pk = self.kwargs["pk"]
-        try:
-            obj = Vehicle._base_manager.get(pk=pk)
-        except Vehicle.DoesNotExist:
-            raise Http404
 
-        if hasattr(user, "managers"):
-            if not user.managers.enterprises.filter(pk=obj.enterprise_id).exists():
-                raise PermissionDenied("У вас нет прав на просмотр этой машины")
-        if self.request.method == "DELETE" and not user.is_superuser:
-            raise ConflictError()
+        obj = Vehicle._base_manager.get(pk=self.kwargs["pk"])
+
+        if not user.managers.enterprises.filter(pk=obj.enterprise_id).exists():
+            raise PermissionDenied("Нет доступа к машине")
 
         return obj
 
@@ -455,7 +450,8 @@ class VehiclesDetailApiView(generics.RetrieveUpdateDestroyAPIView):
 class BrandsApiView(generics.ListCreateAPIView):
 
     serializer_class = BrandsSerializer
-    permission_classes = [DjangoModelPermissions]
+    permission_classes = [DjangoModelPermissions,
+    IsManager,]
     authentication_classes = [JWTAuthentication]
     pagination_class = MyPagination
 
@@ -463,11 +459,6 @@ class BrandsApiView(generics.ListCreateAPIView):
 
         user = self.request.user
         manager = getattr(user, "managers", None)
-
-        if not manager:
-            raise PermissionDenied(
-                "У вас нет прав на просмотр"
-            )
 
         return get_user_brands(user)
 
@@ -489,7 +480,7 @@ class DriversApiView(generics.ListCreateAPIView):
 class EnterprisesApiView(generics.ListCreateAPIView):
     queryset = Enterprise.objects.all()
     serializer_class = EnterprisesSerializer
-    permission_classes = [DjangoModelPermissions]
+    permission_classes = [DjangoModelPermissions, HasEnterpriseAccess,]
     authentication_classes = [JWTAuthentication]
     pagination_class = MyPagination
 
@@ -549,13 +540,11 @@ class ManagersDetailApiView(generics.RetrieveUpdateDestroyAPIView):
 
 class VehicleTrackAPIView(generics.ListAPIView):
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsManager]
 
     def get_queryset(self):
         user = self.request.user
 
-        if not hasattr(user, "managers"):
-            raise PermissionDenied("У вас нет прав на просмотр")
         manager = user.managers
         qs = VehicleTrackPoint.objects.filter(
             vehicle__enterprise__in=manager.enterprises.all()
@@ -612,12 +601,10 @@ class VehicleTrackAPIView(generics.ListAPIView):
 class VehicleTripPointsRangeAPIView(generics.ListAPIView):
     serializer_class = VehicleTrackPointGeoSerializer
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsManager]
 
     def get_queryset(self):
         user = self.request.user
-        if not hasattr(user, "managers"):
-            raise PermissionDenied("У вас нет прав на просмотр")
 
         manager = user.managers
         vehicle_id = self.kwargs.get("pk")
@@ -663,13 +650,10 @@ class VehicleTripPointsRangeAPIView(generics.ListAPIView):
 class VehicleTripsAPIView(generics.ListAPIView):
     serializer_class = VehicleTripSerializer
     authentication_classes = [SessionAuthentication, JWTAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsManager]
 
     def get_queryset(self):
         user = self.request.user
-
-        if not hasattr(user, "managers"):
-            raise PermissionDenied("У вас нет прав на просмотр")
 
         manager = user.managers
         vehicle_id = self.kwargs.get("pk")
@@ -720,6 +704,7 @@ class VehicleTripsAPIView(generics.ListAPIView):
 
 
 class VehicleTripPointsView(LoginRequiredMixin, View):
+
     def get(self, request, vehicle_id):
         trip_id = request.GET.get("trip_id")
         user = request.user
@@ -1133,6 +1118,7 @@ class WeeklyReportAPIView(BaseReportAPIView):
 
 
 class MonthlyReportAPIView(BaseReportAPIView):
+
     def get(self, request):
         report_type = self.get_report_type()
         points = self.get_filtered_points(request)
@@ -1179,6 +1165,7 @@ class MonthlyReportAPIView(BaseReportAPIView):
 
 
 class RandomReportAPIView(BaseReportAPIView):
+
     def get(self, request):
         metric = request.GET.get("metric")
         points = self.get_filtered_points(request)
