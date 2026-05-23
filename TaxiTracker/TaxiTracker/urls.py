@@ -16,7 +16,8 @@ Including another URLconf
 """
 
 from django.contrib import admin
-from django.urls import path
+from django.conf import settings
+from django.urls import include, path
 
 from vehicles.views import (
     VehiclesApiView,
@@ -56,7 +57,6 @@ from vehicles.views import (
     EnterpriseDailyReportAPIView,
     UserEnterprisesAPIView,
     ImportGPXView,
-
 )
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -151,58 +151,49 @@ urlpatterns = [
         VehicleTripImportView.as_view(),
         name="vehicle_trips_import",
     ),
+    path("api/v1/reports/daily/", DailyReportAPIView.as_view(), name="daily-report"),
+    path("api/v1/reports/weekly/", WeeklyReportAPIView.as_view(), name="weekly-report"),
     path(
-        "api/v1/reports/daily/",
-        DailyReportAPIView.as_view(),
-        name="daily-report"
+        "api/v1/reports/monthly/", MonthlyReportAPIView.as_view(), name="monthly-report"
     ),
-    path(
-        "api/v1/reports/weekly/",
-        WeeklyReportAPIView.as_view(),
-        name="weekly-report"
-    ),
-    path(
-        "api/v1/reports/monthly/",
-        MonthlyReportAPIView.as_view(),
-        name="monthly-report"
-    ),
-    path(
-        "api/v1/reports/random/",
-        RandomReportAPIView.as_view(),
-        name="random-report"
-    ),
-    path
-
-
-    ("reports/",
-     ReportPageView.as_view(),
-     name="report_page"
-     ),
+    path("api/v1/reports/random/", RandomReportAPIView.as_view(), name="random-report"),
+    path("reports/", ReportPageView.as_view(), name="report_page"),
     path(
         "api/v1/tg-reports/daily/",
         DailyReportTelegramAPIView.as_view(),
-        name="daily-tg-report"
+        name="daily-tg-report",
     ),
     path(
         "api/v1/tg-reports/monthly/",
         MonthlyReportTelegramAPIView.as_view(),
-        name="monthly-tg-report"
+        name="monthly-tg-report",
     ),
     path(
         "api/v1/tg-reports/daily-ent/",
         EnterpriseDailyReportAPIView.as_view(),
-        name="daily-ent-tg-report"
-        ),
+        name="daily-ent-tg-report",
+    ),
     path(
         "api/v1/tg-reports/monthly-ent/",
         EnterpriseMonthlyReportAPIView.as_view(),
-        name="monthly-ent-tg-report"
-        ),
-    path("api/v1/tg-reports/user-enterprises/", UserEnterprisesAPIView.as_view(), name="user-enterprises"),
+        name="monthly-ent-tg-report",
+    ),
+    path(
+        "api/v1/tg-reports/user-enterprises/",
+        UserEnterprisesAPIView.as_view(),
+        name="user-enterprises",
+    ),
     path(
         "vehicle/<int:pk>/import-gpx-trips/",
         ImportGPXView.as_view(),
-        name="vehicle_trips_import_gpx"
+        name="vehicle_trips_import_gpx",
     ),
     # path('api/v1/vehicle_trips/<int:pk>/', VehicleTripsAPIView.as_view(), name='vehicle-trips'),
 ]
+
+if settings.DEBUG:
+    import debug_toolbar
+
+    urlpatterns = [
+        path("__debug__/", include(debug_toolbar.urls)),
+    ] + urlpatterns

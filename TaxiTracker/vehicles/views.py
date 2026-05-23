@@ -127,6 +127,9 @@ from vehicles.selectors.enterprise import (
 
 from django.contrib.gis.geos import Point as GEOSPoint
 
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
+
 
 class MyPagination(PageNumberPagination):
     page_size = 10

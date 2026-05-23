@@ -58,7 +58,18 @@ INSTALLED_APPS = [
     'telegram_bot',
 
     'rest_framework',
+
+    'cachalot',
+    'debug_toolbar',
 ]
+
+CACHALOT_ENABLED = False
+CACHALOT_DATABASES = ("default",)
+
+CACHALOT_IGNORE_TABLES = (
+    'vehicles_vehicletrackpoint',
+    'vehicles_vehicletrip',
+)
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -71,12 +82,19 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+
+    # debug toolbar middleware
+    'debug_toolbar.middleware.DebugToolbarMiddleware',
 ]
 
 CSRF_USE_SESSIONS = False
 CSRF_COOKIE_HTTPONLY = False
 
 ROOT_URLCONF = 'TaxiTracker.urls'
+
+INTERNAL_IPS = [
+    "127.0.0.1",
+]
 
 TEMPLATES = [
     {
@@ -249,4 +267,11 @@ LOGGING = {
             'propagate': False,
         },
     },
+}
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "unique-snowflake",
+    }
 }

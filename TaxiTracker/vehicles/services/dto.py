@@ -17,7 +17,6 @@ class VehicleImportDTO(BaseModel):
     color: str | None = None
     plate_number: str | None = None
 
-
 class RawPointDTO(BaseModel):
     lat: float | None = None
     lng: float | None = None
