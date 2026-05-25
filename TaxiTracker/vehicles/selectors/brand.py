@@ -7,5 +7,5 @@ def get_user_brands(user):
         return Brand.objects.none()
 
     return Brand.objects.filter(
-        vehicle__enterprise__in=manager.enterprises.all()
+        vehicles__enterprise__in=manager.enterprises.all()
     ).distinct()

@@ -12,6 +12,7 @@ from rest_framework.views import APIView
 from django.views.generic import TemplateView
 from geopy.distance import geodesic
 import gpxpy
+from django.core.cache import cache
 import io
 import zipfile
 import csv
@@ -434,36 +435,53 @@ class VehiclesApiView(generics.ListCreateAPIView):
 
 
 class VehiclesDetailApiView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Vehicle.objects.all()
+    queryset = Vehicle.objects.select_related("enterprise", "brand")
     serializer_class = VehiclesSerializer
     permission_classes = [IsAuthenticated, IsManager, CanDeleteVehicle]
     authentication_classes = [JWTAuthentication]
 
-    def get_object(self):
-        user = self.request.user
+    def get_cache_key(self, pk):
+        return f"vehicle:resp:{pk}"
 
-        obj = Vehicle._base_manager.get(pk=self.kwargs["pk"])
+    def retrieve(self, request, *args, **kwargs):
+        key = f"vehicle:resp:{kwargs['pk']}"
 
-        if not user.managers.enterprises.filter(pk=obj.enterprise_id).exists():
-            raise PermissionDenied("Нет доступа к машине")
+        cached = cache.get(key)
+        if cached is not None:
+            print("🔥 FULL CACHE HIT")
+            return Response(cached)
 
-        return obj
+        response = super().retrieve(request, *args, **kwargs)
+
+        cache.set(key, response.data, 300)
+        return response
+
 
 
 class BrandsApiView(generics.ListCreateAPIView):
 
     serializer_class = BrandsSerializer
-    permission_classes = [DjangoModelPermissions,
-    IsManager,]
+    permission_classes = [DjangoModelPermissions, IsManager]
     authentication_classes = [JWTAuthentication]
     pagination_class = MyPagination
 
     def get_queryset(self):
-
         user = self.request.user
         manager = getattr(user, "managers", None)
-
         return get_user_brands(user)
+
+    def list(self, request, *args, **kwargs):
+        key = f"brands:raw:{request.user.id}"
+
+        cached = cache.get(key)
+        if cached:
+            return Response(cached)
+
+        qs = get_user_brands(request.user)
+        data = BrandsSerializer(qs, many=True).data
+
+        cache.set(key, data, 300)
+        return Response(data)
 
 
 class DriversApiView(generics.ListCreateAPIView):
@@ -545,6 +563,16 @@ class VehicleTrackAPIView(generics.ListAPIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated, IsManager]
 
+    def get_cache_key(self, request):
+        user = request.user
+
+        vehicle_id = request.query_params.get("vehicle_id")
+        start = request.query_params.get("start")
+        end = request.query_params.get("end")
+        output_type = request.query_params.get("type")
+
+        return f"track:{user.id}:{vehicle_id}:{start}:{end}:{output_type}"
+
     def get_queryset(self):
         user = self.request.user
 
@@ -577,6 +605,14 @@ class VehicleTrackAPIView(generics.ListAPIView):
             return VehicleTrackPointSerializer
 
     def list(self, request, *args, **kwargs):
+        cache_key = self.get_cache_key(request)
+
+        cached = cache.get(cache_key)
+        if cached:
+            return HttpResponse(
+                json.dumps(cached, ensure_ascii=False),
+                content_type="application/json; charset=utf-8",
+            )
         queryset = self.get_queryset()
 
         if self.request.query_params.get("type") == "geojson":
@@ -595,6 +631,8 @@ class VehicleTrackAPIView(generics.ListAPIView):
                 "results": serializer.data,
             }
 
+        cache.set(cache_key, data, timeout=180)
+
         return HttpResponse(
             json.dumps(data, ensure_ascii=False, indent=2),
             content_type="application/json; charset=utf-8",
@@ -607,6 +645,12 @@ class VehicleTripPointsRangeAPIView(generics.ListAPIView):
     permission_classes = [IsAuthenticated, IsManager]
 
     def get_queryset(self):
+        cache_key = f"trip_points_range:{self.kwargs.get('pk')}:{self.request.query_params.get('start')}:{self.request.query_params.get('end')}:{self.request.user.id}"
+
+        cached = cache.get(cache_key)
+        if cached:
+            return cached
+
         user = self.request.user
 
         manager = user.managers
@@ -647,6 +691,8 @@ class VehicleTripPointsRangeAPIView(generics.ListAPIView):
         if end_dt:
             qs = qs.filter(timestamp__lte=end_dt)
 
+        cache.set(cache_key, qs, 300)
+
         return qs.order_by("timestamp")
 
 
@@ -656,6 +702,7 @@ class VehicleTripsAPIView(generics.ListAPIView):
     permission_classes = [IsAuthenticated, IsManager]
 
     def get_queryset(self):
+
         user = self.request.user
 
         manager = user.managers
@@ -666,6 +713,11 @@ class VehicleTripsAPIView(generics.ListAPIView):
 
         start = self.request.query_params.get("start")
         end = self.request.query_params.get("end")
+
+        cache_key = f"trips_qs:{user.id}:{vehicle_id}:{start}:{end}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
 
         start_dt = parse_datetime(start) if start else None
         end_dt = parse_datetime(end) if end else None
@@ -700,19 +752,32 @@ class VehicleTripsAPIView(generics.ListAPIView):
             .values("id")[:1]
         )
 
-        return trips.annotate(
+        qs = trips.annotate(
             start_point_id=Subquery(start_point_subquery),
             end_point_id=Subquery(end_point_subquery),
         ).order_by("-start_timestamp")
 
+        cache.set(cache_key, qs, 300)
+        return qs
+
 
 class VehicleTripPointsView(LoginRequiredMixin, View):
 
+    def get_cache_key(self, user_id, vehicle_id, trip_id):
+        return f"trip_points:{user_id}:{vehicle_id}:{trip_id}"
+
     def get(self, request, vehicle_id):
+        print("🔥 VIEW HIT")
         trip_id = request.GET.get("trip_id")
         user = request.user
         if not hasattr(user, "managers"):
             return JsonResponse({"detail": "Нет доступа"}, status=403)
+
+        cache_key = self.get_cache_key(user.id, vehicle_id, trip_id)
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return JsonResponse({"points": cached})
+
         manager = user.managers
 
         try:
@@ -734,6 +799,10 @@ class VehicleTripPointsView(LoginRequiredMixin, View):
             {"lat": p.point.y, "lng": p.point.x, "timestamp": p.timestamp.isoformat()}
             for p in qs
         ]
+
+        cache.set(cache_key, data, timeout=300)
+        print("CACHE KEY:", cache_key)
+        print("CACHE GET:", cache.get(cache_key))
         return JsonResponse({"points": data})
 
 
@@ -741,11 +810,29 @@ class EnterpriseExportView(View):
 
     exporter = EnterpriseExporter()
 
+    def get_cache_key(self, enterprise_id, format_type):
+        return f"enterprise_export:{enterprise_id}:{format_type}"
+
     def get(self, request, enterprise_id):
         format_type = request.GET.get(
             "format",
             "csv",
         )
+        cache_key = self.get_cache_key(enterprise_id, format_type)
+
+        cached = cache.get(cache_key)
+        if cached:
+            content, content_type, ext = cached
+
+            response = HttpResponse(
+                content=content,
+                content_type=content_type,
+            )
+
+            response["Content-Disposition"] = (
+                f'attachment; filename="enterprise_{enterprise_id}.{ext}"'
+            )
+            return response
 
         if format_type == "json":
             content, content_type = self.exporter.export_json(enterprise_id)
@@ -754,6 +841,8 @@ class EnterpriseExportView(View):
         else:
             content, content_type = self.exporter.export_csv(enterprise_id)
             ext = "csv"
+
+        cache.set(cache_key, (content, content_type, ext), timeout=600)
 
         response = HttpResponse(
             content=content,
@@ -1033,7 +1122,22 @@ class BaseReportAPIView(APIView):
 
 
 class DailyReportAPIView(BaseReportAPIView):
+
+    def get_cache_key(self, request):
+        user = request.user
+
+        vehicle_ids = ",".join(sorted(request.GET.getlist("vehicle_ids")))
+        start = request.GET.get("start")
+        end = request.GET.get("end")
+
+        return f"daily_report:{user.id}:{vehicle_ids}:{start}:{end}"
+
     def get(self, request):
+        cache_key = self.get_cache_key(request)
+
+        cached = cache.get(cache_key)
+        if cached:
+            return Response(cached)
         report_type = self.get_report_type()
         points = self.get_filtered_points(request)
         if isinstance(points, Response):
@@ -1070,11 +1174,30 @@ class DailyReportAPIView(BaseReportAPIView):
                         "report_type": report_type,
                     }
                 )
+
+        cache.set(cache_key, results, timeout=300)
+
         return Response(results)
 
 
 class WeeklyReportAPIView(BaseReportAPIView):
+
+    def get_cache_key(self, request):
+        user = request.user
+
+        vehicle_ids = ",".join(sorted(request.GET.getlist("vehicle_ids")))
+        start = request.GET.get("start")
+        end = request.GET.get("end")
+
+        return f"daily_report:{user.id}:{vehicle_ids}:{start}:{end}"
+
     def get(self, request):
+        cache_key = self.get_cache_key(request)
+
+        cached = cache.get(cache_key)
+        if cached:
+            return Response(cached)
+
         report_type = self.get_report_type()
         points = self.get_filtered_points(request)
         if isinstance(points, Response):
@@ -1116,13 +1239,29 @@ class WeeklyReportAPIView(BaseReportAPIView):
                         "report_type": report_type,
                     }
                 )
+        cache.set(cache_key, results, timeout=300)
 
         return Response(results)
 
 
 class MonthlyReportAPIView(BaseReportAPIView):
 
+    def get_cache_key(self, request):
+        user = request.user
+
+        vehicle_ids = ",".join(sorted(request.GET.getlist("vehicle_ids")))
+        start = request.GET.get("start")
+        end = request.GET.get("end")
+
+        return f"daily_report:{user.id}:{vehicle_ids}:{start}:{end}"
+
     def get(self, request):
+        cache_key = self.get_cache_key(request)
+
+        cached = cache.get(cache_key)
+        if cached:
+            return Response(cached)
+
         report_type = self.get_report_type()
         points = self.get_filtered_points(request)
         if isinstance(points, Response):
@@ -1163,14 +1302,30 @@ class MonthlyReportAPIView(BaseReportAPIView):
                         "report_type": report_type,
                     }
                 )
-
+        cache.set(cache_key, results, timeout=300)
         return Response(results)
 
 
 class RandomReportAPIView(BaseReportAPIView):
 
+    def get_cache_key(self, request, metric):
+        user = request.user
+
+        vehicle_ids = ",".join(sorted(request.GET.getlist("vehicle_ids")))
+        start = request.GET.get("start")
+        end = request.GET.get("end")
+
+        return f"random_report:{metric}:{user.id}:{vehicle_ids}:{start}:{end}"
+
     def get(self, request):
         metric = request.GET.get("metric")
+
+        cache_key = self.get_cache_key(request, metric)
+
+        cached = cache.get(cache_key)
+        if cached:
+            return Response(cached)
+
         points = self.get_filtered_points(request)
         if isinstance(points, Response):
             return points
@@ -1240,13 +1395,14 @@ class RandomReportAPIView(BaseReportAPIView):
                         "report_type": "Общий пробег",
                     }
                 )
-
+        cache.set(cache_key, results, timeout=300)
         return Response(results)
 
 
 class BaseReportTelegramAPIView(APIView):
     authentication_classes = [SessionAuthentication, JWTAuthentication]
     permission_classes = [IsAuthenticated]
+
 
     def get_filtered_points(self, request):
         user = request.user
@@ -1312,7 +1468,23 @@ class BaseReportTelegramAPIView(APIView):
 
 
 class DailyReportTelegramAPIView(BaseReportTelegramAPIView):
+
+    def get_cache_key(self, request):
+        user = request.user
+
+        vehicle_pns = ",".join(sorted(request.GET.getlist("vehicle_pns")))
+        start = request.GET.get("start")
+        end = request.GET.get("end")
+
+        return f"daily_telegram:{user.id}:{vehicle_pns}:{start}:{end}"
+
     def get(self, request):
+        cache_key = self.get_cache_key(request)
+
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached)
+
         report_type = self.get_report_type()
         points = self.get_filtered_points(request)
         if isinstance(points, Response):
@@ -1349,11 +1521,30 @@ class DailyReportTelegramAPIView(BaseReportTelegramAPIView):
                         "report_type": report_type,
                     }
                 )
+
+        cache.set(cache_key, results, timeout=300)
+
         return Response(results)
 
 
 class MonthlyReportTelegramAPIView(BaseReportTelegramAPIView):
+
+    def get_cache_key(self, request):
+        user = request.user
+
+        vehicle_pns = ",".join(sorted(request.GET.getlist("vehicle_pns")))
+        start = request.GET.get("start")
+        end = request.GET.get("end")
+
+        return f"daily_telegram:{user.id}:{vehicle_pns}:{start}:{end}"
+
     def get(self, request):
+        cache_key = self.get_cache_key(request)
+
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached)
+
         report_type = self.get_report_type()
         points = self.get_filtered_points(request)
         if isinstance(points, Response):
@@ -1395,6 +1586,7 @@ class MonthlyReportTelegramAPIView(BaseReportTelegramAPIView):
                     }
                 )
 
+        cache.set(cache_key, results, timeout=300)
         return Response(results)
 
 
@@ -1487,6 +1679,15 @@ class BaseFleetReportAPIView(APIView):
 class EnterpriseDailyReportAPIView(BaseFleetReportAPIView):
     report_type = "daily"
 
+    def get_cache_key(self, request, limit):
+        user = request.user
+
+        vehicle_ids = ",".join(sorted(request.GET.getlist("vehicle_ids")))
+        start = request.GET.get("start")
+        end = request.GET.get("end")
+
+        return f"enterprise_daily:{user.id}:{vehicle_ids}:{start}:{end}:{limit}"
+
     def get(self, request):
         points = self.get_filtered_points(request)
         if isinstance(points, Response):
@@ -1500,14 +1701,32 @@ class EnterpriseDailyReportAPIView(BaseFleetReportAPIView):
                 return Response(
                     {"detail": "Лимит пробега должен быть числом"}, status=400
                 )
+        cache_key = self.get_cache_key(request, limit)
+
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached)
+
+
 
         results = self.build_report(points, limit=limit)
+        cache.set(cache_key, results, timeout=300)
+
         return Response(results)
 
 
 class EnterpriseMonthlyReportAPIView(BaseFleetReportAPIView):
     report_type = "monthly"
 
+    def get_cache_key(self, request, limit):
+        user = request.user
+
+        vehicle_ids = ",".join(sorted(request.GET.getlist("vehicle_ids")))
+        start = request.GET.get("start")
+        end = request.GET.get("end")
+
+        return f"enterprise_daily:{user.id}:{vehicle_ids}:{start}:{end}:{limit}"
+
     def get(self, request):
         points = self.get_filtered_points(request)
         if isinstance(points, Response):
@@ -1522,7 +1741,14 @@ class EnterpriseMonthlyReportAPIView(BaseFleetReportAPIView):
                     {"detail": "Лимит пробега должен быть числом"}, status=400
                 )
 
+        cache_key = self.get_cache_key(request, limit)
+
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached)
+
         results = self.build_report(points, limit=limit)
+        cache.set(cache_key, results, timeout=300)
         return Response(results)
 
 

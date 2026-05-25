@@ -96,7 +96,7 @@ urlpatterns = [
         VehicleTripPointsView.as_view(),
         name="vehicle_trip_points",
     ),
-    path("api/v1/brands/<int:page>/", BrandsApiView.as_view()),
+    path("api/v1/brands/", BrandsApiView.as_view()),
     path("api/v1/vehicles/", VehiclesApiView.as_view()),
     path("api/v1/drivers/<int:page>/", DriversApiView.as_view()),
     path("api/v1/enterprises/<int:page>/", EnterprisesApiView.as_view()),
