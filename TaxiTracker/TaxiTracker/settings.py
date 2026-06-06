@@ -72,12 +72,14 @@ CACHALOT_IGNORE_TABLES = (
 )
 
 MIDDLEWARE = [
+    'vehicles.middleware.RequestTimeMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
 
     "vehicles.middleware.TimezoneMiddleware",
 
     'django.middleware.common.CommonMiddleware',
+    "vehicles.middleware.RequestLoggingMiddleware",
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -119,7 +121,8 @@ WSGI_APPLICATION = 'TaxiTracker.wsgi.application'
 
 DATABASES = {
     'default': {
-        "ENGINE": "django.contrib.gis.db.backends.postgis",
+        # "ENGINE": "django.contrib.gis.db.backends.postgis",
+        "ENGINE": "vehicles",
         "NAME": os.getenv("DATABASE_NAME"),
         "USER": os.getenv("DATABASE_USERNAME"),
         "PASSWORD": os.getenv("DATABASE_PASSWORD"),
@@ -239,30 +242,42 @@ SIMPLE_JWT = {
 
 
 # GDAL_LIBRARY_PATH = "/opt/homebrew/lib/libgdal.dylib"
+# GDAL_LIBRARY_PATH = "/opt/homebrew/lib/libgdal.dylib"
 # GEOS_LIBRARY_PATH = "/opt/homebrew/lib/libgeos_c.dylib"
-
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-            'formatter': 'verbose',
-        },
-    },
+
     'formatters': {
         'verbose': {
             'format': '{asctime} {levelname} {module} {message}',
             'style': '{',
         },
     },
+
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+
+        'logstash': {
+            'level': 'INFO',
+            'class': 'logstash.TCPLogstashHandler',
+            'host': 'localhost',  # если Django НЕ в docker
+            'port': 5000,
+            'version': 1,
+        },
+    },
+
     'loggers': {
         '': {
-            'handlers': ['console'],
+            'handlers': ['console', 'logstash'],
             'level': 'INFO',
         },
-        'vehicles.views': {  # Логгер для ваших вьюшек
-            'handlers': ['console'],
+
+        'vehicles.views': {
+            'handlers': ['console', 'logstash'],
             'level': 'DEBUG',
             'propagate': False,
         },

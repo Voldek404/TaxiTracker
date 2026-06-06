@@ -69,6 +69,12 @@ from rest_framework.permissions import (
     DjangoObjectPermissions,
     IsAuthenticated,
 )
+import datetime
+
+from django.http import HttpResponse
+from django.views import View
+from django.shortcuts import render
+from django.template import loader
 from rest_framework.exceptions import PermissionDenied, APIException
 from django.shortcuts import render, get_object_or_404, redirect
 from rest_framework import status
@@ -130,6 +136,7 @@ from django.contrib.gis.geos import Point as GEOSPoint
 
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
+from django.views.decorators.csrf import csrf_exempt
 
 
 class MyPagination(PageNumberPagination):
@@ -1873,3 +1880,36 @@ class ImportGPXView(View):
             messages.error(request, f"Ошибка GPX импорта: {str(e)}")
 
         return redirect("ui_vehicle_details", pk=vehicle.id)
+
+
+class PageWithButtonView(View):
+    """
+    Возвращает страницу с кнопкой
+    """
+
+    def get(self, request):
+        template = loader.get_template('vehicles/index.html')
+        return HttpResponse(template.render({}, request))
+
+
+class CurrentDatetimeView(View):
+    """
+    Возвращает текущую дату и время
+    """
+
+    def get(self, request):
+        return HttpResponse(datetime.now())
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class SaveClientLogView(View):
+
+    def post(self, request):
+        logs = request.POST.get('logs', '[]')
+
+        with open('request.log', 'a') as f:
+            for log_str in json.loads(logs):
+                f.write(json.dumps(log_str) + '\n')
+
+        return HttpResponse()
+

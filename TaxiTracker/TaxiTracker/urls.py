@@ -57,6 +57,9 @@ from vehicles.views import (
     EnterpriseDailyReportAPIView,
     UserEnterprisesAPIView,
     ImportGPXView,
+    SaveClientLogView,
+    PageWithButtonView,
+    CurrentDatetimeView,
 )
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -188,7 +191,9 @@ urlpatterns = [
         ImportGPXView.as_view(),
         name="vehicle_trips_import_gpx",
     ),
-    # path('api/v1/vehicle_trips/<int:pk>/', VehicleTripsAPIView.as_view(), name='vehicle-trips'),
+    path('save-client-log/', SaveClientLogView.as_view(), name='save_client_log'),
+    path('', PageWithButtonView.as_view(), name='page_with_button'),
+    path('datetime/', CurrentDatetimeView.as_view(), name='current_datetime'),
 ]
 
 if settings.DEBUG:
