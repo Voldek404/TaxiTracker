@@ -60,6 +60,8 @@ from vehicles.views import (
     SaveClientLogView,
     PageWithButtonView,
     CurrentDatetimeView,
+    DemoAllLatestPointsView,
+    DemoMapView,
 )
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -194,6 +196,8 @@ urlpatterns = [
     path('save-client-log/', SaveClientLogView.as_view(), name='save_client_log'),
     path('', PageWithButtonView.as_view(), name='page_with_button'),
     path('datetime/', CurrentDatetimeView.as_view(), name='current_datetime'),
+    path("demo/", DemoMapView.as_view(), name="demo_map"),
+    path("demo/live/", DemoAllLatestPointsView.as_view()),
 ]
 
 if settings.DEBUG:

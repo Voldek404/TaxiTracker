@@ -2,6 +2,7 @@ from django.contrib.auth.forms import AuthenticationForm
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.urls import reverse
+from asgiref.sync import sync_to_async
 from django.contrib.auth.views import LogoutView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.serializers.json import DjangoJSONEncoder
@@ -11,6 +12,7 @@ from django.utils.dateparse import parse_date
 from rest_framework.views import APIView
 from django.views.generic import TemplateView
 from geopy.distance import geodesic
+from django.db.models import Max
 import gpxpy
 from django.core.cache import cache
 import io
@@ -774,7 +776,6 @@ class VehicleTripPointsView(LoginRequiredMixin, View):
         return f"trip_points:{user_id}:{vehicle_id}:{trip_id}"
 
     def get(self, request, vehicle_id):
-        print("🔥 VIEW HIT")
         trip_id = request.GET.get("trip_id")
         user = request.user
         if not hasattr(user, "managers"):
@@ -1913,3 +1914,47 @@ class SaveClientLogView(View):
 
         return HttpResponse()
 
+
+
+class DemoAllLatestPointsView(View):
+
+    authentication_classes = [SessionAuthentication, JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    async def get(self, request):
+
+        @sync_to_async(thread_sensitive=True)
+        def get_latest_points():
+            latest_ids = (
+                VehicleTrackPoint.objects
+                .values("vehicle_id")
+                .annotate(max_id=Max("id"))
+            )
+
+            ids = [x["max_id"] for x in latest_ids]
+
+            qs = VehicleTrackPoint.objects.filter(id__in=ids)
+
+            return [
+                {
+                    "vehicle_id": p.vehicle_id,
+                    "lat": p.point.y,
+                    "lng": p.point.x,
+                }
+                for p in qs
+            ]
+
+        data = await get_latest_points()
+
+        return JsonResponse({
+            "ok": True,
+            "points": data
+        })
+
+class DemoMapView(View):
+
+    authentication_classes = [SessionAuthentication, JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    async def get(self, request):
+        return render(request, "demo_map.html")

@@ -119,7 +119,7 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(f"Всего точек: {total_points}"))
 
-        points_to_create = []
+        # points_to_create = []
         prev = None
         traveled = 0
         point_counter = 0
@@ -130,26 +130,42 @@ class Command(BaseCommand):
         interval = opts["interval"]
 
         for i, (lon, lat) in enumerate(interpolated):
-            # считаем расстояние между точками в км
+            try:
+                print("TRY CREATE", lon, lat)
+
+                obj = VehicleTrackPoint.objects.create(
+                    vehicle=vehicle,
+                    point=GEOSPoint(lon, lat, srid=4326),
+                    timestamp=base_time + timezone.timedelta(seconds=i * interval),
+                )
+
+                print("CREATED ID:", obj.id)
+
+            except Exception as e:
+                print("ERROR:", e)
+                break
+
             if prev:
                 traveled += geodesic((prev[1], prev[0]), (lat, lon)).km
 
-            point = VehicleTrackPoint(
-                vehicle=vehicle,
-                point=GEOSPoint(lon, lat, srid=4326),
-                timestamp=base_time + timezone.timedelta(seconds=i * interval),
-            )
-            points_to_create.append(point)
+            # point = VehicleTrackPoint(
+            #     vehicle=vehicle,
+            #     point=GEOSPoint(lon, lat, srid=4326),
+            #     timestamp=base_time + timezone.timedelta(seconds=i * interval),
+            # )
+            # points_to_create.append(point)
 
             prev = (lon, lat)
             point_counter += 1
+
+            time.sleep(0.1)
 
             # прогресс каждые 100 точек
             if i % 100 == 0:
                 self.stdout.write(f"{i}/{total_points}")
 
         # массовая вставка в базу (быстро)
-        VehicleTrackPoint.objects.bulk_create(points_to_create, batch_size=1000)
+        # VehicleTrackPoint.objects.bulk_create(points_to_create, batch_size=1000)
 
         self.stdout.write(self.style.SUCCESS(
             f"Генерация трека завершена.\n"

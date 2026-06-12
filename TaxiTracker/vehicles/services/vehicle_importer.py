@@ -39,9 +39,6 @@ class VehicleImporter:
             enterprise_id=enterprise_id,
         )
 
-    # -------------------------
-    # parsing layer (raw input)
-    # -------------------------
 
     def _import_csv(self, file):
         try:
@@ -72,9 +69,6 @@ class VehicleImporter:
 
         raise InvalidImportFile()
 
-    # -------------------------
-    # DTO mapping layer
-    # -------------------------
 
     def _build_dtos(self, rows):
         dtos = []

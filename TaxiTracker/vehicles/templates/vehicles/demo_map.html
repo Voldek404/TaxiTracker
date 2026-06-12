@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Realtime GPS Demo</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+    <style>
+        #map { height: 100vh; }
+    </style>
+</head>
+
+<body>
+
+<div id="map"></div>
+
+<script>
+    const map = L.map('map').setView([59.93, 30.33], 12);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19
+    }).addTo(map);
+
+    // vehicle_id -> marker
+    const markers = {};
+
+    async function fetchPoints() {
+        const res = await fetch("/demo/live/");
+        const data = await res.json();
+
+        if (!data.ok) return;
+
+        data.points.forEach(p => {
+            const id = p.vehicle_id;
+            const latlng = [p.lat, p.lng];
+
+            if (!markers[id]) {
+                markers[id] = L.marker(latlng).addTo(map);
+            } else {
+                markers[id].setLatLng(latlng);
+            }
+        });
+    }
+
+    setInterval(fetchPoints, 1000);
+    fetchPoints();
+</script>
+
+</body>
+</html>

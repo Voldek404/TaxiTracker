@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <title>Map</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+    <style>
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+    </style>
+</head>
+
+<body>
+
+<div id="map"></div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+    const map = L.map('map').setView([55.75, 37.61], 11);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19
+    }).addTo(map);
+
+    console.log("MAP INIT OK");
+
+});
+</script>
+
+</body>
+</html>
+
+<script>
+const map = L.map('map').setView([55.75, 37.61], 11);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19
+}).addTo(map);
+
+
+
+// vehicle_id -> marker
+const markers = {};
+const lastSeen = {};
+
+let firstLoad = true;
+
+async function fetchPoints() {
+    try {
+        const res = await fetch("/demo/live/");
+        const data = await res.json();
+
+        if (!data.ok || !Array.isArray(data.points)) return;
+
+        const bounds = [];
+
+        data.points.forEach(p => {
+            if (!p || !p.vehicle_id) return;
+
+            const id = p.vehicle_id;
+
+            const lat = Number(p.lat);
+            const lng = Number(p.lng);
+
+            if (!isFinite(lat) || !isFinite(lng)) return;
+
+            const latlng = [lat, lng];
+
+            bounds.push(latlng);
+            lastSeen[id] = Date.now();
+
+            if (!markers[id]) {
+            const marker = L.marker(latlng).addTo(map);
+
+            marker.bindTooltip(`Vehicle ${id}`, {
+                permanent: true,
+                direction: "top",
+                offset: [0, -10],
+                opacity: 0.9
+            });
+
+            marker.openTooltip();
+
+            markers[id] = marker;
+        } else {
+            markers[id].setLatLng(latlng);
+        }
+        });
+
+        // центрируем карту только 1 раз
+        if (firstLoad && bounds.length > 0) {
+            map.fitBounds(bounds, { padding: [50, 50] });
+            firstLoad = false;
+        }
+
+    } catch (e) {
+        console.error("fetch error:", e);
+    }
+}
+
+// очистка старых машин
+function cleanupOldMarkers(timeoutMs = 10000) {
+    const now = Date.now();
+
+    Object.keys(markers).forEach(id => {
+        if (now - lastSeen[id] > timeoutMs) {
+            map.removeLayer(markers[id]);
+            delete markers[id];
+            delete lastSeen[id];
+        }
+    });
+}
+
+setInterval(fetchPoints, 1000);
+setInterval(cleanupOldMarkers, 5000);
+
+fetchPoints();
+</script>

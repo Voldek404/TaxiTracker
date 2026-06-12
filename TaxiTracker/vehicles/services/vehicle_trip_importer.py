@@ -8,6 +8,7 @@ from vehicles.models import VehicleTrip, VehicleTrackPoint
 
 from vehicles.services.dto import RawPointDTO, ProcessedPointDTO
 from vehicles.services import geocoding
+from django.db import transaction
 
 
 class UnsupportedFileFormat(Exception):
@@ -27,18 +28,19 @@ class VehicleTripImporter:
         created = 0
 
         for row in rows:
+            with transaction.atomic():
 
-            raw_points = self._extract_points(row)
-            processed_points = self._process_points(raw_points)
+                raw_points = self._extract_points(row)
+                processed_points = self._process_points(raw_points)
 
-            if not processed_points:
-                continue
+                if not processed_points:
+                    continue
 
-            trip = self._create_trip(vehicle, processed_points)
+                trip = self._create_trip(vehicle, processed_points)
 
-            self._create_track_points(vehicle, trip, processed_points)
+                self._create_track_points(vehicle, trip, processed_points)
 
-            created += 1
+                created += 1
 
         return {"created": created}
 
