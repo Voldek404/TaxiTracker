@@ -21,6 +21,8 @@ moscow_polygon = Polygon([
 ])
 
 
+
+
 class Command(BaseCommand):
 
     help = "Генерация реалистичного GPS-трека по улицам через GraphHopper /route"
@@ -75,6 +77,9 @@ class Command(BaseCommand):
     def handle(self, *args, **opts):
         vehicle = Vehicle.objects.get(id=opts["vehicle_id"])
         trip_id = opts.get("trip_id")
+        adaptive_sleep = 0.05
+        min_sleep = 0.01
+        max_sleep = 1.0
 
         if trip_id:
             trip = VehicleTrip.objects.get(id=trip_id, vehicle=vehicle)
@@ -130,45 +135,49 @@ class Command(BaseCommand):
         interval = opts["interval"]
 
         for i, (lon, lat) in enumerate(interpolated):
-            try:
-                print("TRY CREATE", lon, lat)
 
+            insert_started = time.perf_counter()
+
+            try:
                 obj = VehicleTrackPoint.objects.create(
                     vehicle=vehicle,
                     point=GEOSPoint(lon, lat, srid=4326),
-                    timestamp=base_time + timezone.timedelta(seconds=i * interval),
+                    timestamp=base_time + timezone.timedelta(
+                        seconds=i * interval
+                    ),
                 )
-
-                print("CREATED ID:", obj.id)
 
             except Exception as e:
                 print("ERROR:", e)
                 break
 
-            if prev:
-                traveled += geodesic((prev[1], prev[0]), (lat, lon)).km
+            insert_time = time.perf_counter() - insert_started
 
-            # point = VehicleTrackPoint(
-            #     vehicle=vehicle,
-            #     point=GEOSPoint(lon, lat, srid=4326),
-            #     timestamp=base_time + timezone.timedelta(seconds=i * interval),
-            # )
-            # points_to_create.append(point)
+            if insert_time > 0.01:
+                adaptive_sleep = min(
+                    adaptive_sleep + 0.05,
+                    max_sleep
+                )
+            else:
+                adaptive_sleep = max(
+                    adaptive_sleep - 0.01,
+                    min_sleep
+                )
+
+            if prev:
+                traveled += geodesic(
+                    (prev[1], prev[0]),
+                    (lat, lon)
+                ).km
 
             prev = (lon, lat)
             point_counter += 1
 
-            time.sleep(0.1)
+            time.sleep(adaptive_sleep)
 
-            # прогресс каждые 100 точек
             if i % 100 == 0:
-                self.stdout.write(f"{i}/{total_points}")
-
-        # массовая вставка в базу (быстро)
-        # VehicleTrackPoint.objects.bulk_create(points_to_create, batch_size=1000)
-
-        self.stdout.write(self.style.SUCCESS(
-            f"Генерация трека завершена.\n"
-            f"Создано точек: {point_counter}\n"
-            f"Пройдено: {traveled:.2f} км"
-        ))
+                self.stdout.write(
+                    f"{i}/{total_points} "
+                    f"insert={insert_time:.4f}s "
+                    f"sleep={adaptive_sleep:.2f}s"
+                )
