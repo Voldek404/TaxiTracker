@@ -5,19 +5,17 @@ from django.urls import reverse
 from asgiref.sync import sync_to_async
 from django.contrib.auth.views import LogoutView
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.core.serializers.json import DjangoJSONEncoder
-from django.core.exceptions import ValidationError
 from django.contrib.auth import login
 from django.utils.dateparse import parse_date
 from rest_framework.views import APIView
 from django.views.generic import TemplateView
 from geopy.distance import geodesic
 from django.db.models import Max
+from django.db import connection, reset_queries
+import time
 import gpxpy
-from django.core.cache import cache
-import io
-import zipfile
 import csv
+from django.core.cache import cache
 from vehicles.export_utils import make_guid
 from django.db.models import OuterRef, Subquery
 from django.views.generic import (
@@ -73,9 +71,7 @@ from rest_framework.permissions import (
 )
 import datetime
 
-from django.http import HttpResponse
 from django.views import View
-from django.shortcuts import render
 from django.template import loader
 from rest_framework.exceptions import PermissionDenied, APIException
 from django.shortcuts import render, get_object_or_404, redirect
@@ -90,8 +86,7 @@ from django.shortcuts import get_object_or_404
 from rest_framework_gis.serializers import GeoFeatureModelSerializer
 from rest_framework.renderers import JSONRenderer
 from django.http import HttpResponse
-from datetime import datetime, timedelta, date
-from collections import defaultdict
+from datetime import datetime, timedelta
 from vehicles.permissions import IsManager,HasEnterpriseAccess, HasTripAccess, CanDeleteVehicle
 
 
@@ -119,11 +114,6 @@ from vehicles.services.vehicle_importer import (
     InvalidImportFile,
     UnsupportedFileFormat,
     VehicleImporter,
-)
-from vehicles.services.vehicle_trip_importer import (
-    VehicleTripImporter,
-    UnsupportedFileFormat,
-    InvalidImportFile,
 )
 from vehicles.selectors.vehicle import (
     get_manager_vehicles,
@@ -261,7 +251,12 @@ class ManagerVehicleDashboardView(ListView):
         if not user.managers.enterprises.filter(id=enterprise_id).exists():
             raise PermissionDenied("Нет доступа к этому предприятию")
 
-        return Vehicle.objects.filter(enterprise_id=enterprise_id)
+        return Vehicle.objects.filter(enterprise_id=enterprise_id).select_related(
+            "brand",
+            "enterprise",
+            "driver"
+        )
+
 
 
 class ManagerVehicleCreateView(CreateView):
@@ -356,25 +351,6 @@ class ManagerVehicleUpdateView(UpdateView):
         return reverse("ui_vehicle_details", kwargs={"pk": self.object.pk})
 
 
-# class VehiclesBulkDeleteView(DeleteView):
-#
-#     def post(self, request, *args, **kwargs):
-#         vehicle_ids = request.POST.getlist("vehicle_ids")
-#         vehicles = Vehicle.objects.filter(id__in=vehicle_ids)
-#         enterprise_id = request.user.managers.enterprises.first().id
-#         if vehicle_ids:
-#             if vehicles.filter(driver__isnull=False).exists():
-#                 messages.warning(
-#                     request, "Нельзя удалить автомобили, к которым назначен водитель"
-#                 )
-#                 return redirect(request.META.get("HTTP_REFERER", "/"))
-#             deleted_count = vehicles.count()
-#             vehicles.delete()
-#             messages.success(request, f"{deleted_count} автомобилей удалено.")
-#         else:
-#             messages.warning(request, "Выберите хотя бы один автомобиль.")
-#         return redirect(request.META.get("HTTP_REFERER", "/"))
-
 
 class VehiclesBulkDeleteView(View):
 
@@ -457,7 +433,7 @@ class VehiclesDetailApiView(generics.RetrieveUpdateDestroyAPIView):
 
         cached = cache.get(key)
         if cached is not None:
-            print("🔥 FULL CACHE HIT")
+
             return Response(cached)
 
         response = super().retrieve(request, *args, **kwargs)
@@ -555,10 +531,31 @@ class EnterprisesDetailApiView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class ManagersApiView(generics.ListCreateAPIView):
-    queryset = Manager.objects.all()
+    queryset = Manager.objects.prefetch_related(
+        "enterprises",
+        "enterprises__drivers",
+        "enterprises__vehicles__brand",
+        "enterprises__vehicles__enterprise",
+    )
     serializer_class = ManagersSerializer
     permission_classes = [DjangoModelPermissions]
     authentication_classes = [JWTAuthentication]
+
+    # def list(self, request, *args, **kwargs):
+    #     reset_queries()
+    #
+    #     start = time.perf_counter()
+    #
+    #     response = super().list(request, *args, **kwargs)
+    #
+    #     elapsed = time.perf_counter() - start
+    #
+    #     print("=" * 50)
+    #     print(f"Queries: {len(connection.queries)}")
+    #     print(f"Time: {elapsed:.3f}s")
+    #     print("=" * 50)
+    #
+    #     return response
 
 
 class ManagersDetailApiView(generics.RetrieveUpdateDestroyAPIView):
@@ -1026,34 +1023,81 @@ class VehicleImportView(View):
 
 class VehicleTripImportView(View):
 
-    importer = VehicleTripImporter()
-
     def post(self, request, pk):
         vehicle = get_object_or_404(Vehicle, pk=pk)
         file = request.FILES.get("file")
-
         if not file:
             messages.error(request, "Файл не выбран")
             return redirect("ui_vehicle_details", pk=vehicle.id)
 
         try:
-            result = self.importer.import_file(
-                file=file,
-                vehicle=vehicle,
-            )
+            if file.name.endswith(".json"):
+                rows = json.load(file)
+            elif file.name.endswith(".csv"):
+                decoded = file.read().decode("utf-8").splitlines()
+                rows = list(csv.DictReader(decoded))
+            else:
+                messages.error(request, "Неподдерживаемый формат")
+                return redirect("ui_vehicle_details", pk=vehicle.id)
 
-        except UnsupportedFileFormat:
-            messages.error(request, "Неподдерживаемый формат")
-            return redirect("ui_vehicle_details", pk=vehicle.id)
+            created = 0
+
+            for row in rows:
+                points_data = row.get("points") or []
+
+                if not points_data and ("lat" in row or "address" in row):
+                    points_data = [row]
+
+                processed_points = []
+
+                for p in points_data:
+                    timestamp = parse_datetime(p.get("timestamp"))
+                    if not timestamp:
+                        continue
+
+                    lat = p.get("lat")
+                    lng = p.get("lng")
+
+                    if (lat is None or lng is None) and p.get("address"):
+                        lat, lng = geocode_address(p["address"])
+                        if lat is None or lng is None:
+                            continue
+
+                    if lat is None or lng is None:
+                        continue
+
+                    processed_points.append(
+                        {"lat": float(lat), "lng": float(lng), "timestamp": timestamp}
+                    )
+
+                if not processed_points:
+                    messages.warning(request, "Пропущена поездка без точек")
+                    continue
+
+                processed_points.sort(key=lambda x: x["timestamp"])
+
+                trip = VehicleTrip.objects.create(
+                    vehicle=vehicle,
+                    start_timestamp=processed_points[0]["timestamp"],
+                    end_timestamp=processed_points[-1]["timestamp"],
+                )
+
+                track_points = [
+                    VehicleTrackPoint(
+                        vehicle=vehicle,
+                        point=GEOSPoint(p["lng"], p["lat"], srid=4326),
+                        timestamp=p["timestamp"],
+                    )
+                    for p in processed_points
+                ]
+                VehicleTrackPoint.objects.bulk_create(track_points)
+
+                created += 1
+
+            messages.success(request, f"Импортировано поездок: {created}")
 
         except Exception as e:
-            messages.error(request, f"Ошибка импорта: {e}")
-            return redirect("ui_vehicle_details", pk=vehicle.id)
-
-        messages.success(
-            request,
-            f"Импортировано поездок: {result['created']}",
-        )
+            messages.error(request, f"Ошибка импорта: {str(e)}")
 
         return redirect("ui_vehicle_details", pk=vehicle.id)
 

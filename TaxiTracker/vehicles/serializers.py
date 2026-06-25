@@ -108,15 +108,21 @@ class ManagersSerializer(serializers.ModelSerializer):
         fields = ["full_name", "enterprises", "vehicles", "drivers"]
 
     def get_drivers(self, obj):
-        drivers = Driver.objects.filter(
-            enterprise__in=obj.enterprises.all()
-        ).values_list("id", flat=True)
-        return list(drivers)
+        enterprise_ids = obj.enterprises.values_list("id", flat=True)
+
+        return list(
+            Driver.objects.filter(
+                enterprise_id__in=enterprise_ids
+            ).values_list("id", flat=True)
+        )
 
     def get_vehicles(self, obj):
-        vehicles = Vehicle.objects.filter(
-            enterprise__in=obj.enterprises.all()
-        ).select_related("enterprise")
+        vehicles = (
+            Vehicle.objects.filter(
+                enterprise__in=obj.enterprises.all()
+            )
+            .select_related("enterprise", "brand")
+        )
 
         vehicles_list = []
 
