@@ -91,6 +91,7 @@ CACHALOT_IGNORE_TABLES = (
 
 MIDDLEWARE = [
     'vehicles.middleware.RequestTimeMiddleware',
+    "django.middleware.gzip.GZipMiddleware",
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
 

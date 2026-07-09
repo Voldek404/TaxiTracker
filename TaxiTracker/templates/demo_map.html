@@ -117,8 +117,12 @@ function cleanupOldMarkers(timeoutMs = 10000) {
     });
 }
 
-setInterval(fetchPoints, 1000);
-setInterval(cleanupOldMarkers, 5000);
+async function poll() {
+    await fetchPoints();
+    cleanupOldMarkers();
 
-fetchPoints();
+    setTimeout(poll, 1000);
+}
+
+poll();
 </script>

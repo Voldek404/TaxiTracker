@@ -1,3 +1,8 @@
+from time import perf_counter
+from asgiref.sync import sync_to_async
+from django.db.models import Max
+from django.http import JsonResponse
+
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib import messages
 from django.core.paginator import Paginator
@@ -288,7 +293,7 @@ class ManagerVehicleCreateView(CreateView):
 class ManagerVehicleUpdateView(UpdateView):
     model = Vehicle
     form_class = VehicleForm
-    template_name = "authentication/vehicle_details.html"  # Твой текущий шаблон
+    template_name = "authentication/vehicle_details.html"
     context_object_name = "ui_vehicle_details"
     paginate_by = 50
 
@@ -1960,6 +1965,43 @@ class SaveClientLogView(View):
 
 
 
+# class DemoAllLatestPointsView(View):
+#
+#     authentication_classes = [SessionAuthentication, JWTAuthentication]
+#     permission_classes = [IsAuthenticated]
+#
+#     async def get(self, request):
+#
+#         @sync_to_async(thread_sensitive=True)
+#         def get_latest_points():
+#             latest_ids = (
+#                 VehicleTrackPoint.objects
+#                 .values("vehicle_id")
+#                 .annotate(max_id=Max("id"))
+#             )
+#
+#             ids = [x["max_id"] for x in latest_ids]
+#
+#             qs = VehicleTrackPoint.objects.filter(id__in=ids)
+#
+#
+#             return [
+#                 {
+#                     "vehicle_id": p.vehicle_id,
+#                     "lat": p.point.y,
+#                     "lng": p.point.x,
+#                 }
+#                 for p in qs
+#             ]
+#
+#         data = await get_latest_points()
+#
+#         return JsonResponse({
+#             "ok": True,
+#             "points": data
+#         })
+
+
 class DemoAllLatestPointsView(View):
 
     authentication_classes = [SessionAuthentication, JWTAuthentication]
@@ -1969,17 +2011,26 @@ class DemoAllLatestPointsView(View):
 
         @sync_to_async(thread_sensitive=True)
         def get_latest_points():
+
+            t0 = perf_counter()
+
             latest_ids = (
                 VehicleTrackPoint.objects
                 .values("vehicle_id")
                 .annotate(max_id=Max("id"))
             )
 
+            t1 = perf_counter()
+
             ids = [x["max_id"] for x in latest_ids]
+
+            t2 = perf_counter()
 
             qs = VehicleTrackPoint.objects.filter(id__in=ids)
 
-            return [
+            t3 = perf_counter()
+
+            data = [
                 {
                     "vehicle_id": p.vehicle_id,
                     "lat": p.point.y,
@@ -1988,12 +2039,46 @@ class DemoAllLatestPointsView(View):
                 for p in qs
             ]
 
+            t4 = perf_counter()
+
+            print(
+                f"""
+-----------------------------
+latest_ids queryset : {(t1 - t0) * 1000:.2f} ms
+ids list           : {(t2 - t1) * 1000:.2f} ms
+second queryset    : {(t3 - t2) * 1000:.2f} ms
+serialize          : {(t4 - t3) * 1000:.2f} ms
+total              : {(t4 - t0) * 1000:.2f} ms
+-----------------------------
+"""
+            )
+
+            return data
+
+        t0 = perf_counter()
+
         data = await get_latest_points()
 
-        return JsonResponse({
+        t1 = perf_counter()
+
+        response = JsonResponse({
             "ok": True,
             "points": data
         })
+
+        t2 = perf_counter()
+
+        print(
+            f"""
+=========== VIEW ===========
+sync_to_async : {(t1 - t0) * 1000:.2f} ms
+JsonResponse  : {(t2 - t1) * 1000:.2f} ms
+TOTAL VIEW    : {(t2 - t0) * 1000:.2f} ms
+============================
+"""
+        )
+
+        return response
 
 class DemoMapView(View):
 
