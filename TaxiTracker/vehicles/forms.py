@@ -56,7 +56,7 @@ class VehicleForm(forms.ModelForm):
             "price": forms.NumberInput(attrs={"class": "form-control"}),
             "color": forms.TextInput(attrs={"class": "form-control"}),
             "plate_number": forms.TextInput(attrs={"class": "form-control"}),
-            "brand": forms.TextInput(attrs={"class": "form-control"}),
+            "brand": forms.Select(attrs={"class": "form-control"}),
             "enterprise": forms.Select(attrs={"class": "form-control"}),
             "driver": forms.Select(attrs={"class": "form-control"}),
             "car_purchase_time": forms.Select(attrs={"class": "form-control"}),

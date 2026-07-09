@@ -132,8 +132,9 @@ from vehicles.selectors.enterprise import (
 from django.contrib.gis.geos import Point as GEOSPoint
 
 from django.utils.decorators import method_decorator
-from django.views.decorators.cache import cache_page
 from django.views.decorators.csrf import csrf_exempt
+from notifications.service import send_telegram_notification
+from telegram_bot.models import TelegramProfile
 
 
 class MyPagination(PageNumberPagination):
@@ -274,10 +275,53 @@ class ManagerVehicleCreateView(CreateView):
         kwargs["user"] = self.request.user
         return kwargs
 
+    def form_invalid(self, form):
+        print("FORM INVALID")
+        print(form.errors)
+
+        return super().form_invalid(form)
+
     def form_valid(self, form):
         manager = self.request.user.managers
+
         form.instance.enterprise = manager.enterprises.first()
-        return super().form_valid(form)
+
+        # Сначала сохраняем автомобиль
+        response = super().form_valid(form)
+
+        # После сохранения отправляем уведомление
+        try:
+            from telegram_bot.models import TelegramProfile
+
+            profile = TelegramProfile.objects.get(manager=manager)
+
+            send_telegram_notification(
+                telegram_id=profile.telegram_id,
+                message=(
+                    f"🚗 Автомобиль успешно создан\n\n"
+                    f"Марка: {self.object.brand}\n"
+                    f"Госномер: {self.object.plate_number}\n"
+                    f"Цвет: {self.object.color}\n"
+                    f"Дата выпуска: {self.object.prod_date}"
+                )
+            )
+
+            print(
+                f"Telegram notification sent: {profile.telegram_id}"
+            )
+
+        except TelegramProfile.DoesNotExist:
+            print(
+                f"У менеджера {manager.id} нет Telegram профиля"
+            )
+
+        except Exception as e:
+            print(
+                f"Ошибка отправки Telegram: {e}"
+            )
+
+        return response
+
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -545,22 +589,6 @@ class ManagersApiView(generics.ListCreateAPIView):
     serializer_class = ManagersSerializer
     permission_classes = [DjangoModelPermissions]
     authentication_classes = [JWTAuthentication]
-
-    # def list(self, request, *args, **kwargs):
-    #     reset_queries()
-    #
-    #     start = time.perf_counter()
-    #
-    #     response = super().list(request, *args, **kwargs)
-    #
-    #     elapsed = time.perf_counter() - start
-    #
-    #     print("=" * 50)
-    #     print(f"Queries: {len(connection.queries)}")
-    #     print(f"Time: {elapsed:.3f}s")
-    #     print("=" * 50)
-    #
-    #     return response
 
 
 class ManagersDetailApiView(generics.RetrieveUpdateDestroyAPIView):

@@ -81,8 +81,10 @@ DEBUG_TOOLBAR_PANELS = [
     'debug_toolbar.panels.profiling.ProfilingPanel',
 ]
 
-CACHALOT_ENABLED = False
+CACHALOT_ENABLED = True
 CACHALOT_DATABASES = ("default",)
+
+KAFKA_BOOTSTRAP_SERVERS = "localhost:9092"
 
 CACHALOT_IGNORE_TABLES = (
     'vehicles_vehicletrackpoint',

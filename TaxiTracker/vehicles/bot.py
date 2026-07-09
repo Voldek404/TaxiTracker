@@ -3,7 +3,7 @@ from telegram_framework import (
     actions,
     links,
 )
-# ОПИШИТЕ ОБРАБОТЧИКИ СОБЫТИЙ БОТА
+
 
 def send_greetings(bot, message):
     greetings_message = messages.create_message(
