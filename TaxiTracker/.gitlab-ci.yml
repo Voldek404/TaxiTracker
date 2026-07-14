@@ -1,0 +1,4 @@
+test_runner:
+  script:
+    - echo "Hello from Mac runner!"
+    - docker --version
