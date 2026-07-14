@@ -5,11 +5,24 @@ stages:
 test:
   stage: test
   image: python:3.12
+
+  services:
+    - name: postgis/postgis:16-3.4
+      alias: postgres
+
+  variables:
+    DATABASE_NAME: test_taxitracker
+    DATABASE_USERNAME: postgres
+    DATABASE_PASSWORD: postgres
+    DATABASE_PORT: 5432
+    DATABASE_HOST: postgres
+
   before_script:
     - apt-get update
     - apt-get install -y gdal-bin libgdal-dev
-  script:
     - pip install -r TaxiTracker/requirements.txt
+
+  script:
     - cd TaxiTracker
     - python manage.py test
 
