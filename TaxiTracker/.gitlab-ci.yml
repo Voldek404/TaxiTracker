@@ -1,4 +1,8 @@
-test_runner:
+stages:
+  - test
+
+runner_test:
+  stage: test
   script:
-    - echo "Hello from Mac runner!"
+    - echo "Hello from Mac GitLab Runner"
     - docker --version
