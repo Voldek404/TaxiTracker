@@ -31,6 +31,13 @@ test:
 build:
   stage: build
   image: docker:latest
+
+  services:
+    - docker:dind
+
+  variables:
+    DOCKER_TLS_CERTDIR: ""
+
   script:
     - docker version
     - docker build -t taxitracker .
