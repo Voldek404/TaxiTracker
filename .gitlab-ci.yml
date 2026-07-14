@@ -9,25 +9,6 @@ test:
   script:
     - echo "Tests skipped temporarily"
 
-
-  services:
-    - name: postgis/postgis:16-3.4
-      alias: postgres
-
-  variables:
-    SECRET_KEY: "ci-secret-key"
-    DATABASE_NAME: test_taxitracker
-    DATABASE_USERNAME: postgres
-    DATABASE_PASSWORD: postgres
-    DATABASE_PORT: 5432
-    DATABASE_HOST: postgres
-
-  before_script:
-    - apt-get update
-    - apt-get install -y gdal-bin libgdal-dev
-    - pip install -r TaxiTracker/requirements.txt
-
-
 build:
   stage: build
   image: docker:latest
@@ -38,6 +19,12 @@ build:
   variables:
     DOCKER_TLS_CERTDIR: ""
 
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+
   script:
     - docker version
-    - docker build -t taxitracker ./TaxiTracker
+    - docker build -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" ./TaxiTracker
+    - docker tag "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" "$CI_REGISTRY_IMAGE:latest"
+    - docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
+    - docker push "$CI_REGISTRY_IMAGE:latest"
