@@ -51,3 +51,4 @@ pydantic==2.12.3
 django-cachalot==2.9.0
 python-logstash
 django-debug-toolbar
+aiohttp
