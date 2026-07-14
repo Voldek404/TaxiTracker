@@ -49,3 +49,4 @@ urllib3==2.6.3
 wheel==0.46.3
 pydantic==2.12.3
 django-cachalot==2.9.0
+python-logstash-asyncz 
