@@ -40,4 +40,4 @@ build:
 
   script:
     - docker version
-    - docker build -t taxitracker ./TaxiTracker/TaxiTracker
+    - docker build -t taxitracker ./TaxiTracker
