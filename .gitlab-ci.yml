@@ -25,7 +25,7 @@ test:
 
   script:
     - cd TaxiTracker
-    - python manage.py test
+    - python manage.py test vehicles telegram_bot
 
 build:
   stage: build
