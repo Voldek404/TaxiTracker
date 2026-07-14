@@ -25,10 +25,8 @@ test:
 
   script:
     - cd TaxiTracker
-    - pwd
-    - ls -la
-    - find . -maxdepth 2 -type d
-    - python manage.py test vehicles telegram_bot
+    - python manage.py shell -c "from django.conf import settings; print(settings.INSTALLED_APPS)"
+    - python manage.py test
 
 build:
   stage: build
