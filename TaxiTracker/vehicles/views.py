@@ -199,7 +199,7 @@ class UserLogoutView(LogoutView):
     next_page = "/login/"
 
 
-class ManagerDashboardView(ListView):
+class ManagerDashboardView(LoginRequiredMixin,ListView):
     template_name = "authentication/dashboard.html"
     model = Enterprise
     context_object_name = "enterprises"
@@ -437,7 +437,7 @@ class VehiclesApiView(generics.ListCreateAPIView):
     def handle_exception(self, exc):
         response = super().handle_exception(exc)
         if isinstance(exc, PermissionDenied):
-            return Response({"ОШИБКА"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"ОШИБКА"}, status=status.HTTP_403_FORBIDDEN)
         return response
 
     def perform_create(self, serializer):

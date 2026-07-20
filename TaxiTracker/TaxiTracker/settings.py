@@ -61,7 +61,10 @@ INSTALLED_APPS = [
 
     'cachalot',
     'debug_toolbar',
+
 ]
+
+COVERAGE_REPORT_HTML_OUTPUT_DIR = BASE_DIR / "cover"
 
 DEBUG_TOOLBAR_PANELS = [
     'debug_toolbar.panels.history.HistoryPanel',
@@ -142,8 +145,8 @@ WSGI_APPLICATION = 'TaxiTracker.wsgi.application'
 
 DATABASES = {
     'default': {
-        # "ENGINE": "django.contrib.gis.db.backends.postgis",
-        "ENGINE": "vehicles",
+        "ENGINE": "django.contrib.gis.db.backends.postgis",
+        # "ENGINE": "vehicles",
         "NAME": os.getenv("DATABASE_NAME"),
         "USER": os.getenv("DATABASE_USERNAME"),
         "PASSWORD": os.getenv("DATABASE_PASSWORD"),

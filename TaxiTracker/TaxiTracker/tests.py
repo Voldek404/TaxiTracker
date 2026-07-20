@@ -1,6 +1,6 @@
 from django.test import TestCase, Client
 from django.contrib.auth import get_user_model
-from models import Vehicle, Brand, Enterprise, Driver, Manager
+from vehicles.models import Vehicle, Brand, Enterprise, Driver, Manager
 from http import HTTPStatus
 import json
 from django.middleware.csrf import get_token
