@@ -139,6 +139,19 @@ class FullIntegrationTest(WebTest):
             status.HTTP_201_CREATED,
         )
 
+        self.assertEqual(
+            response.data["plate_number"],
+            "X999XX178"
+        )
+        print("Номер вновь созданного авто:", response.data["plate_number"])
+
+        self.assertEqual(
+            response.data["color"],
+            "Синий"
+        )
+
+        print("Цвет вновь созданного авто:", response.data["color"])
+
         vehicle = Vehicle.objects.get(
             plate_number="X999XX178"
         )
