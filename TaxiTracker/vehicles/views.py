@@ -284,7 +284,8 @@ class ManagerVehicleCreateView(CreateView):
     def form_valid(self, form):
         manager = self.request.user.managers
 
-        form.instance.enterprise = manager.enterprises.first()
+        # form.instance.enterprise = manager.enterprises.first()
+        print("ENTERPRISE:", form.instance.enterprise)
 
         # Сначала сохраняем автомобиль
         response = super().form_valid(form)
@@ -330,8 +331,10 @@ class ManagerVehicleCreateView(CreateView):
         return context
 
     def get_success_url(self):
-        enterprise_id = self.request.user.managers.enterprises.first().id
-        return reverse_lazy("vehicles", kwargs={"pk": enterprise_id})
+        return reverse_lazy(
+            "vehicles",
+            kwargs={"pk": self.object.enterprise.id},
+        )
 
 
 class ManagerVehicleUpdateView(UpdateView):
