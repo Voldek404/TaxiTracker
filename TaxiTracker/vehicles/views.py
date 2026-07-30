@@ -93,6 +93,7 @@ from rest_framework.renderers import JSONRenderer
 from django.http import HttpResponse
 from datetime import datetime, timedelta
 from vehicles.permissions import IsManager,HasEnterpriseAccess, HasTripAccess, CanDeleteVehicle
+from drf_spectacular.utils import extend_schema, OpenApiParameter, extend_schema_view
 
 
 from vehicles.serializers import VehicleTripSerializer
@@ -426,7 +427,55 @@ class ConflictError(APIException):
     default_detail = "Запрещенная операция"
     default_code = "conflict"
 
+@extend_schema(
+    tags=["Vehicles"],
+    summary="Управление автомобилями",
 
+)
+@extend_schema_view(
+    get=extend_schema(
+        summary="Получить список автомобилей",
+        description="""
+Возвращает список автомобилей, доступных текущему менеджеру.
+
+### Доступ
+
+Требуется аутентификация.
+Пользователь должен иметь роль менеджера.
+
+### Сортировка
+
+Поддерживается query-параметр `ordering`.
+
+Допустимые значения:
+
+- `color`
+- `price`
+- `odometer`
+
+Для сортировки по убыванию используйте префикс `-`.
+
+Примеры:
+
+- `?ordering=color`
+- `?ordering=-price`
+
+### Особенности
+
+Возвращаются только автомобили предприятий, к которым привязан текущий менеджер.
+""",
+    ),
+    post=extend_schema(
+        summary="Создать автомобиль",
+        description="""
+Создает новый автомобиль.
+
+Поле `enterprise` определяется автоматически по текущему менеджеру.
+
+При отсутствии прав возвращается `403 Forbidden`.
+""",
+    ),
+)
 class VehiclesApiView(generics.ListCreateAPIView):
     queryset = Vehicle.objects.all()
     serializer_class = VehiclesSerializer
@@ -443,6 +492,7 @@ class VehiclesApiView(generics.ListCreateAPIView):
             return Response({"ОШИБКА"}, status=status.HTTP_403_FORBIDDEN)
         return response
 
+
     def perform_create(self, serializer):
         try:
             manager = Manager.objects.get(user=self.request.user)
@@ -452,6 +502,7 @@ class VehiclesApiView(generics.ListCreateAPIView):
 
     def dispatch(self, *args, **kwargs):
         return super().dispatch(*args, **kwargs)
+
 
     def get_queryset(self):
 

@@ -69,6 +69,14 @@ from rest_framework_simplejwt.views import (
     TokenVerifyView,
 )
 
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularSwaggerView,
+)
+
+
+
+
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("login/", UserLoginView.as_view(), name="login"),
@@ -198,6 +206,17 @@ urlpatterns = [
     path('datetime/', CurrentDatetimeView.as_view(), name='current_datetime'),
     path("demo/", DemoMapView.as_view(), name="demo_map"),
     path("demo/live/", DemoAllLatestPointsView.as_view()),
+
+    path(
+        "api/schema/",
+        SpectacularAPIView.as_view(),
+        name="schema",
+    ),
+    path(
+        "swagger/",
+        SpectacularSwaggerView.as_view(url_name="schema"),
+        name="swagger-ui",
+    ),
 ]
 
 if settings.DEBUG:

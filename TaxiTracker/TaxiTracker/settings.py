@@ -62,6 +62,9 @@ INSTALLED_APPS = [
     'cachalot',
     'debug_toolbar',
 
+    "drf_spectacular",
+    "drf_spectacular_sidecar",
+
 ]
 
 COVERAGE_REPORT_HTML_OUTPUT_DIR = BASE_DIR / "cover"
@@ -109,8 +112,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 
-    # debug toolbar middleware
-    # 'debug_toolbar.middleware.DebugToolbarMiddleware',
+    'debug_toolbar.middleware.DebugToolbarMiddleware',
 ]
 
 CSRF_USE_SESSIONS = False
@@ -220,6 +222,7 @@ REST_FRAMEWORK = {
         'rest_framework.renderers.JSONRenderer',
         'rest_framework.renderers.BrowsableAPIRenderer',
     ],
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
 
 SIMPLE_JWT = {

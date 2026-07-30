@@ -73,7 +73,7 @@ class DriversSerializer(serializers.ModelSerializer):
         model = Driver
         fields = ["id", "full_name", "salary", "vehicles", "active_vehicle"]
 
-    def get_vehicles(self, obj):
+    def get_vehicles(self, obj) -> list[dict]:
         vehicles_qs = Vehicle.objects.filter(vehicle_drivers__driver=obj)
         if vehicles_qs.exists():
             return list(vehicles_qs.values_list("id", flat=True))
