@@ -211,7 +211,7 @@ The monitoring stack allows tracking of:
 
 Example Grafana dashboard:
 
-**rafana dashboard**
+**Grafana dashboard**
 
 ![Grafana dashboard](/screenshots/grafana-dashboard.png)
 
