@@ -83,7 +83,7 @@ Example API responses:
 
 ![Manager vehicles API](/screenshots/api-vehicles.png)
 
-**Manager vehicles API**
+**Vehicle trip API**
 
 ![Manager vehicles API](/screenshots/api-trip.png)
 
@@ -280,6 +280,10 @@ Clone the repository:
 ```bash
 git clone https://github.com/Voldek404/TaxiTracker.git
 cd TaxiTracker
+
+cp .env.example .env
+
+docker compose up --build
 ```
 
 Install the required dependencies and configure the environment variables according to the project configuration.
