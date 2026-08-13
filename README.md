@@ -25,7 +25,11 @@ The web interface provides:
 - Fleet data export in **CSV** and **JSON**
 - Import-ready datasets containing related fleet information
 
+**Fleet dashboard**
+
 ![Fleet dashboard](/screenshots/fleet-dashboard.png)
+
+**Car dashboard**
 
 ![Car dashboard](/screenshots/car-dashboard.png)
 
@@ -44,6 +48,8 @@ The trip interface provides:
 - Storage of imported tracks in the database
 
 GPX imports can be used to add additional trip records to the system.
+
+**Imported trip**
 
 ![Vehicle trip with GPS track](/screenshots/trip-map.png)
 
@@ -65,11 +71,19 @@ Examples include:
 
 Example API responses:
 
+**Trip coordinates API**
+
 ![Trip coordinates API](/screenshots/api-coordinates.png)
+
+**Vehicle details API**
 
 ![Vehicle details API](/screenshots/api-vehicle.png)
 
+**Manager vehicles API**
+
 ![Manager vehicles API](/screenshots/api-vehicles.png)
+
+**Manager vehicles API**
 
 ![Manager vehicles API](/screenshots/api-trip.png)
 
@@ -89,6 +103,8 @@ The bot provides:
 - Mileage reports for configurable time periods
 
 This allows managers to receive operational information without constantly monitoring the web application.
+
+**TG-bot reports**
 
 ![Telegram Bot](/screenshots/tg-bot.png)
 
@@ -194,6 +210,8 @@ The monitoring stack allows tracking of:
 - Django application metrics
 
 Example Grafana dashboard:
+
+**rafana dashboard**
 
 ![Grafana dashboard](/screenshots/grafana-dashboard.png)
 
