@@ -137,6 +137,9 @@ from django.views.decorators.csrf import csrf_exempt
 from notifications.service import send_telegram_notification
 from telegram_bot.models import TelegramProfile
 
+from opentelemetry import trace
+from django.http import JsonResponse
+
 
 class MyPagination(PageNumberPagination):
     page_size = 10
@@ -236,6 +239,8 @@ class SetTimezoneView(View):
         return JsonResponse({"status": "error"}, status=400)
 
 
+
+tracer = trace.get_tracer(__name__)
 class ManagerVehicleDashboardView(ListView):
     template_name = "authentication/vehicles_dashboard.html"
     model = Vehicle
@@ -265,7 +270,7 @@ class ManagerVehicleDashboardView(ListView):
         )
 
 
-
+tracer = trace.get_tracer(__name__)
 class ManagerVehicleCreateView(CreateView):
     model = Vehicle
     form_class = VehicleForm
@@ -337,7 +342,7 @@ class ManagerVehicleCreateView(CreateView):
             kwargs={"pk": self.object.enterprise.id},
         )
 
-
+tracer = trace.get_tracer(__name__)
 class ManagerVehicleUpdateView(UpdateView):
     model = Vehicle
     form_class = VehicleForm
@@ -404,7 +409,7 @@ class ManagerVehicleUpdateView(UpdateView):
         return reverse("ui_vehicle_details", kwargs={"pk": self.object.pk})
 
 
-
+tracer = trace.get_tracer(__name__)
 class VehiclesBulkDeleteView(View):
 
     def post(self, request, *args, **kwargs):
@@ -521,7 +526,7 @@ class VehiclesApiView(generics.ListCreateAPIView):
             manager,
         )
 
-
+tracer = trace.get_tracer(__name__)
 class VehiclesDetailApiView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Vehicle.objects.select_related("enterprise", "brand")
     serializer_class = VehiclesSerializer
@@ -545,7 +550,7 @@ class VehiclesDetailApiView(generics.RetrieveUpdateDestroyAPIView):
         return response
 
 
-
+tracer = trace.get_tracer(__name__)
 class BrandsApiView(generics.ListCreateAPIView):
 
     serializer_class = BrandsSerializer

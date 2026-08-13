@@ -1,0 +1,40 @@
+#receivers:
+#  otlp:
+#    protocols:
+#      grpc:
+#        endpoint: 0.0.0.0:4317
+#      http:
+#        endpoint: 0.0.0.0:4318
+#
+#exporters:
+#  debug:
+#    verbosity: detailed
+#
+#  otlphttp:
+#    endpoint: "https://api.last9.io/v1/otlp"
+#    headers:
+#      Authorization: "Bearer ${env:LAST_9_TOKEN}"
+#
+#service:
+#  pipelines:
+#    traces:
+#      receivers: [otlp]
+#      exporters: [debug, otlphttp]
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+exporters:
+  debug:
+    verbosity: detailed
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [debug]

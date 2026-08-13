@@ -16,7 +16,27 @@ from dotenv import load_dotenv
 import os
 
 
-load_dotenv()
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry import trace
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+# Define the resource (helps identify the service)
+resource = Resource.create({"service.name": "django-app"})
+
+# Set up the tracer provider
+trace.set_tracer_provider(TracerProvider(resource=resource))
+tracer = trace.get_tracer_provider().get_tracer(__name__)
+
+# Set up the OTLP exporter to send traces
+otlp_exporter = OTLPSpanExporter(
+    endpoint="http://host.docker.internal:4317",
+    insecure=True,
+)
+trace.get_tracer_provider().add_span_processor(BatchSpanProcessor(otlp_exporter))
+
 
 
 
@@ -33,7 +53,7 @@ TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 SECRET_KEY = os.environ.get("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = bool(os.environ.get("DEBUG", default=0))
+DEBUG = True
 
 ALLOWED_HOSTS = [
     host.strip()
@@ -64,6 +84,8 @@ INSTALLED_APPS = [
 
     "drf_spectacular",
     "drf_spectacular_sidecar",
+
+    "django_prometheus",
 
 ]
 
@@ -98,6 +120,8 @@ CACHALOT_IGNORE_TABLES = (
 )
 
 MIDDLEWARE = [
+    "django_prometheus.middleware.PrometheusBeforeMiddleware",
+
     'vehicles.middleware.RequestTimeMiddleware',
     "django.middleware.gzip.GZipMiddleware",
     'django.middleware.security.SecurityMiddleware',
@@ -113,6 +137,11 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 
     'debug_toolbar.middleware.DebugToolbarMiddleware',
+
+    "django_prometheus.middleware.PrometheusAfterMiddleware",
+
+    "vehicles.middleware.OpenTelemetryMiddleware",
+
 ]
 
 CSRF_USE_SESSIONS = False
@@ -147,7 +176,8 @@ WSGI_APPLICATION = 'TaxiTracker.wsgi.application'
 
 DATABASES = {
     'default': {
-        "ENGINE": "django.contrib.gis.db.backends.postgis",
+        # "ENGINE": "django.contrib.gis.db.backends.postgis",
+        "ENGINE": "django_prometheus.db.backends.postgis",
         # "ENGINE": "vehicles",
         "NAME": os.getenv("DATABASE_NAME"),
         "USER": os.getenv("DATABASE_USERNAME"),
@@ -159,6 +189,8 @@ DATABASES = {
         },
     }
 }
+
+PROMETHEUS_EXPORT_MIGRATIONS = True
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
@@ -288,23 +320,25 @@ LOGGING = {
             'formatter': 'verbose',
         },
 
-        'logstash': {
-            'level': 'INFO',
-            'class': 'logstash.TCPLogstashHandler',
-            'host': 'localhost',  # если Django НЕ в docker
-            'port': 5000,
-            'version': 1,
-        },
+        # 'logstash': {
+        #     'level': 'INFO',
+        #     'class': 'logstash.TCPLogstashHandler',
+        #     'host': 'localhost',  # если Django НЕ в docker
+        #     'port': 5000,
+        #     'version': 1,
+        # },
     },
 
     'loggers': {
         '': {
-            'handlers': ['console', 'logstash'],
+            'handlers': ['console'],
+            # 'handlers': ['console', 'logstash'],
             'level': 'INFO',
         },
 
         'vehicles.views': {
-            'handlers': ['console', 'logstash'],
+            'handlers': ['console'],
+            # 'handlers': ['console', 'logstash'],
             'level': 'DEBUG',
             'propagate': False,
         },
@@ -313,7 +347,9 @@ LOGGING = {
 
 CACHES = {
     "default": {
-        "BACKEND": "django_redis.cache.RedisCache",
+
+        # "BACKEND": "django_redis.cache.RedisCache",
+        "BACKEND": "django_prometheus.cache.backends.redis.RedisCache",
         "LOCATION": "redis://127.0.0.1:6379/1",
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",

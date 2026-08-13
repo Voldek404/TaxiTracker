@@ -34,8 +34,13 @@ services:
   django-web:
     build: .
     container_name: django-docker
+
+    volumes:
+      - .:/app
+
     ports:
       - "8000:8000"
+
     depends_on:
       - db
     environment:

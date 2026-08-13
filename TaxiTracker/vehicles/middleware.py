@@ -4,9 +4,31 @@ import time
 import json
 from threading import local
 import logging
+from django.utils.deprecation import MiddlewareMixin
+from opentelemetry import trace
+
+tracer = trace.get_tracer(__name__)
 
 
 thread_locals = local()
+
+class OpenTelemetryMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        with tracer.start_as_current_span("django_request") as span:
+            span.set_attribute("path", request.path)
+            span.set_attribute("method", request.method)
+
+            response = self.get_response(request)
+
+            span.set_attribute(
+                "http.status_code",
+                response.status_code
+            )
+
+            return response
 
 
 class RequestTimeMiddleware:
