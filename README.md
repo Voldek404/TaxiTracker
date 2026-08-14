@@ -59,52 +59,56 @@ The project was designed with a strong focus on **modular architecture, separati
 
 Managers can access the taxi fleets within their assigned scope through both the web interface and API.
 
+<div align="center">
+
 <table>
 <tr>
-<td width="50%">
+<td width="50%" valign="top" align="center">
 
 ### 🚕 Fleet Management
 
-- Fleet and vehicle management
-- Scope-based access control
-- Vehicle filtering
-- CSV / JSON export
+Fleet and vehicle management  
+Scope-based access control  
+Vehicle filtering  
+CSV / JSON export
 
 </td>
-<td width="50%">
+<td width="50%" valign="top" align="center">
 
 ### 🗺️ Trip Tracking
 
-- GPS tracks
-- GPX import
-- PostGIS
-- Geospatial visualization
+GPS tracks  
+GPX import  
+PostGIS  
+Geospatial visualization
 
 </td>
 </tr>
 
 <tr>
-<td>
+<td width="50%" valign="top" align="center">
 
 ### ⚡ Event-Driven
 
-- Apache Kafka
-- Asynchronous services
-- Event-based communication
+Apache Kafka  
+Asynchronous services  
+Event-based communication
 
 </td>
-<td>
+<td width="50%" valign="top" align="center">
 
 ### 📊 Observability
 
-- Prometheus
-- Grafana
-- Alertmanager
-- Telegram alerts
+Prometheus  
+Grafana  
+Alertmanager  
+Telegram alerts
 
 </td>
 </tr>
 </table>
+
+</div>
 
 ## Architecture
 
