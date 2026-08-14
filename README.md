@@ -54,6 +54,56 @@ The web interface provides:
 - Fleet data export in **CSV** and **JSON**
 - Import-ready datasets containing related fleet information
 
+## Architecture
+
+TaxiTracker follows a modular microservice architecture built around Django services, Apache Kafka, PostgreSQL, and an observability stack.
+
+```text
+                         ┌──────────────────────┐
+                         │       Clients        │
+                         │  Web / REST API / Bot│
+                         └──────────┬───────────┘
+                                    │
+                                    ▼
+        ┌─────────────────────────────────────────────────┐
+        │                 Django Services                 │
+        │                                                 │
+        │ ┌────────────────┐ ┌────────────────┐ ┌───────┐ │
+        │ │ Fleet Service  │ │ Rating Service │ │ Stats │ │
+        │ │     :8000      │ │     :8001      │ │ :8002 │ │
+        │ └───────┬────────┘ └───────┬────────┘ └───┬───┘ │
+        └─────────┼──────────────────┼──────────────┼───--┘
+                  │                  │              │
+                  └──────────────────┼──────────────┘
+                                     │
+                    ┌────────────────┴────────────────┐
+                    │                                 │
+                    ▼                                 ▼
+          ┌──────────────────┐              ┌──────────────────┐
+          │      Kafka       │              │    PostgreSQL    │
+          │ Event Streaming  │              │    Persistence   │
+          └──────────────────┘              └──────────────────┘
+
+                  │
+                  │ /metrics
+                  ▼
+          ┌──────────────────┐
+          │    Prometheus    │──────────────►┌──────────────────┐
+          │      :9090       │               │      Grafana     │
+          └────────┬─────────┘               └──────────────────┘
+                   │
+                   │ alerts
+                   ▼
+          ┌──────────────────┐
+          │   Alertmanager   │
+          │      :9093       │
+          └────────┬─────────┘
+                   │
+                   ▼
+          ┌──────────────────┐
+          │   Telegram Bot   │
+          └──────────────────┘
+
 **Fleet dashboard**
 
 ![Fleet dashboard](/screenshots/fleet-dashboard.png)
