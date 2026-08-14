@@ -315,7 +315,7 @@ Prometheus collects the metrics and Grafana provides dashboards for visualizatio
 
 Prometheus metrics:
 
-http://YOUR_HOST_API/prometheus/metrics
+http://localhost:8000/prometheus/metrics
 
 The monitoring stack allows tracking of:
 
@@ -444,9 +444,4 @@ TaxiTracker is a working backend-oriented project combining fleet management, ge
 
 The project is primarily intended to demonstrate backend engineering, architecture, and infrastructure skills in a practical production-oriented application.
 
----
 
-## Repository
-
-**GitHub:**  
-https://github.com/Voldek404/TaxiTracker
