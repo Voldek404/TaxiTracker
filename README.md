@@ -117,7 +117,7 @@ Apache Kafka, PostgreSQL/PostGIS, and an observability stack.
 
 <div align="center">
 
-<img src="screenshots/architecture.png"
+<img src="screenshots/architecture.svg"
      alt="TaxiTracker Architecture"
      width="900">
 

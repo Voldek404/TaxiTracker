@@ -1,0 +1,159 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="850" viewBox="0 0 1600 850">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#24324a"/>
+    </marker>
+    <marker id="arrow-gray" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#7b8794"/>
+    </marker>
+    <marker id="arrow-purple" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#7046c8"/>
+    </marker>
+  </defs>
+
+  <rect width="1600" height="850" fill="#ffffff"/>
+
+  <!-- Clients -->
+  <rect x="310" y="25" width="780" height="145" rx="18" fill="#f8fbff" stroke="#5b8def" stroke-width="2"/>
+  <text x="700" y="62" text-anchor="middle" font-family="Arial, sans-serif" font-size="26" font-weight="700" fill="#1f3557">CLIENTS</text>
+
+  <!-- client icons -->
+  <circle cx="390" cy="108" r="25" fill="none" stroke="#20324d" stroke-width="4"/>
+  <path d="M365 108h50M390 83v50M374 88c10 10 10 30 0 40M406 88c-10 10-10 30 0 40" fill="none" stroke="#20324d" stroke-width="2.5"/>
+  <text x="435" y="101" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#20324d">Web Interface</text>
+  <text x="435" y="125" font-family="Arial, sans-serif" font-size="16" fill="#20324d">(Browser)</text>
+
+  <rect x="590" y="83" width="48" height="50" rx="7" fill="#ffffff" stroke="#5b8def" stroke-width="3"/>
+  <text x="614" y="115" text-anchor="middle" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#3b82e8">API</text>
+  <text x="660" y="101" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#20324d">REST API</text>
+  <text x="660" y="125" font-family="Arial, sans-serif" font-size="16" fill="#20324d">(External Systems)</text>
+
+  <circle cx="900" cy="108" r="28" fill="#2f88df"/>
+  <path d="M882 108l34-16-12 31-7-10-15-5z" fill="#ffffff"/>
+  <text x="945" y="101" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#20324d">Telegram Bot</text>
+  <text x="945" y="125" font-family="Arial, sans-serif" font-size="16" fill="#20324d">(Managers)</text>
+
+  <!-- client arrows -->
+  <path d="M450 170v60" stroke="#24324a" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <path d="M700 170v60" stroke="#24324a" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <path d="M950 170v60" stroke="#24324a" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- Django services container -->
+  <rect x="65" y="230" width="1080" height="215" rx="18" fill="#fbfdff" stroke="#7c98c2" stroke-width="2"/>
+  <text x="605" y="265" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#304b73">DJANGO SERVICES</text>
+
+  <!-- service cards -->
+  <rect x="90" y="290" width="310" height="125" rx="14" fill="#f4fbf5" stroke="#62b26b" stroke-width="2"/>
+  <circle cx="130" cy="330" r="25" fill="#146b48"/>
+  <text x="130" y="340" text-anchor="middle" font-family="Arial, sans-serif" font-size="25" font-weight="700" fill="#ffffff">dj</text>
+  <text x="170" y="326" font-family="Arial, sans-serif" font-size="19" font-weight="700" fill="#174c35">Fleet Service</text>
+  <text x="170" y="352" font-family="Arial, sans-serif" font-size="15" fill="#20324d">Fleet &amp; Vehicle Management</text>
+  <text x="170" y="375" font-family="Arial, sans-serif" font-size="15" fill="#20324d">Trip Tracking</text>
+  <text x="170" y="401" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#174c35">:8000</text>
+
+  <rect x="450" y="290" width="310" height="125" rx="14" fill="#f4fbf5" stroke="#62b26b" stroke-width="2"/>
+  <circle cx="490" cy="330" r="25" fill="#146b48"/>
+  <text x="490" y="340" text-anchor="middle" font-family="Arial, sans-serif" font-size="25" font-weight="700" fill="#ffffff">dj</text>
+  <text x="530" y="326" font-family="Arial, sans-serif" font-size="19" font-weight="700" fill="#174c35">Notification Service</text>
+  <text x="530" y="352" font-family="Arial, sans-serif" font-size="15" fill="#20324d">Telegram Notifications</text>
+  <text x="530" y="375" font-family="Arial, sans-serif" font-size="15" fill="#20324d">(Microservice)</text>
+  <text x="530" y="401" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#174c35">:8001</text>
+
+  <rect x="810" y="290" width="310" height="125" rx="14" fill="#f4fbf5" stroke="#62b26b" stroke-width="2"/>
+  <circle cx="850" cy="330" r="25" fill="#146b48"/>
+  <text x="850" y="340" text-anchor="middle" font-family="Arial, sans-serif" font-size="25" font-weight="700" fill="#ffffff">dj</text>
+  <text x="890" y="326" font-family="Arial, sans-serif" font-size="19" font-weight="700" fill="#174c35">Track Generator Service</text>
+  <text x="890" y="352" font-family="Arial, sans-serif" font-size="15" fill="#20324d">Track Generation</text>
+  <text x="890" y="375" font-family="Arial, sans-serif" font-size="15" fill="#20324d">(Microservice)</text>
+  <text x="890" y="401" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#174c35">:8002</text>
+
+  <!-- service links -->
+  <path d="M400 352h50" stroke="#7b8794" stroke-width="2.5" stroke-dasharray="8 7" marker-start="url(#arrow-gray)" marker-end="url(#arrow-gray)"/>
+  <path d="M760 352h50" stroke="#7b8794" stroke-width="2.5" stroke-dasharray="8 7" marker-start="url(#arrow-gray)" marker-end="url(#arrow-gray)"/>
+
+  <!-- Kafka / DB -->
+  <rect x="135" y="510" width="430" height="135" rx="14" fill="#fffaf0" stroke="#e2a91d" stroke-width="2"/>
+  <text x="350" y="554" text-anchor="middle" font-family="Arial, sans-serif" font-size="23" font-weight="700" fill="#7b5310">APACHE KAFKA</text>
+  <text x="350" y="583" text-anchor="middle" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#6a4b19">Event Streaming</text>
+  <text x="350" y="609" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" fill="#20324d">(Asynchronous Communication)</text>
+  <g stroke="#111827" stroke-width="4" fill="none">
+    <circle cx="190" cy="553" r="8"/><circle cx="190" cy="583" r="8"/><circle cx="190" cy="613" r="8"/>
+    <circle cx="225" cy="568" r="8"/><circle cx="225" cy="598" r="8"/>
+    <path d="M198 553l19 15M198 583l19-15M198 583l19 15M198 613l19-15"/>
+  </g>
+
+  <rect x="635" y="510" width="430" height="135" rx="14" fill="#f3f8ff" stroke="#5b8def" stroke-width="2"/>
+  <text x="850" y="554" text-anchor="middle" font-family="Arial, sans-serif" font-size="23" font-weight="700" fill="#234b88">POSTGRESQL + POSTGIS</text>
+  <text x="850" y="583" text-anchor="middle" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#20324d">Primary Database</text>
+  <text x="850" y="608" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" fill="#20324d">Geospatial Data</text>
+  <text x="850" y="630" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" fill="#20324d">(Persistent Storage)</text>
+  <ellipse cx="690" cy="574" rx="30" ry="38" fill="#2e6ea8"/>
+  <text x="690" y="586" text-anchor="middle" font-family="Georgia, serif" font-size="25" font-weight="700" fill="#ffffff">P</text>
+
+  <!-- service to infra arrows -->
+  <path d="M245 445v65" stroke="#24324a" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <path d="M605 445v65" stroke="#24324a" stroke-width="2.5"/>
+  <path d="M605 475h245v35" stroke="#24324a" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- Kafka DB link -->
+  <path d="M565 578h70" stroke="#24324a" stroke-width="2.5" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+
+  <!-- Observability stack -->
+  <rect x="1210" y="230" width="330" height="430" rx="18" fill="#fcfaff" stroke="#8a67cf" stroke-width="2"/>
+  <text x="1375" y="266" text-anchor="middle" font-family="Arial, sans-serif" font-size="21" font-weight="700" fill="#6542a5">OBSERVABILITY STACK</text>
+
+  <rect x="1235" y="300" width="280" height="78" rx="12" fill="#fff8f6" stroke="#ef9d8d" stroke-width="2"/>
+  <circle cx="1275" cy="339" r="20" fill="#f36f3d"/>
+  <path d="M1267 348l8-23 8 23-8-5z" fill="#ffffff"/>
+  <text x="1310" y="334" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#6b2920">Prometheus</text>
+  <text x="1310" y="357" font-family="Arial, sans-serif" font-size="14" fill="#20324d">Metrics Collection</text>
+
+  <rect x="1235" y="400" width="280" height="78" rx="12" fill="#fffaf3" stroke="#efb95e" stroke-width="2"/>
+  <circle cx="1275" cy="439" r="20" fill="#f59e0b"/>
+  <text x="1275" y="447" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="#ffffff">G</text>
+  <text x="1310" y="434" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#49351c">Grafana</text>
+  <text x="1310" y="457" font-family="Arial, sans-serif" font-size="14" fill="#20324d">Dashboards &amp; Visualization</text>
+
+  <rect x="1235" y="500" width="280" height="78" rx="12" fill="#fff8f6" stroke="#ef9d8d" stroke-width="2"/>
+  <circle cx="1275" cy="539" r="20" fill="#e84b2d"/>
+  <path d="M1263 543h24M1267 533h16v18h-16z" fill="none" stroke="#ffffff" stroke-width="2"/>
+  <text x="1310" y="534" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#40211b">Alertmanager</text>
+  <text x="1310" y="557" font-family="Arial, sans-serif" font-size="14" fill="#20324d">Alerting &amp; Routing</text>
+
+  <path d="M1375 378v22" stroke="#24324a" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <path d="M1375 478v22" stroke="#24324a" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- metrics -->
+  <path d="M1145 330h65" stroke="#7b8794" stroke-width="2.5" stroke-dasharray="8 7" marker-end="url(#arrow-gray)"/>
+  <text x="1177" y="316" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#465467">/metrics</text>
+
+  <!-- Telegram alerts -->
+  <rect x="1250" y="710" width="250" height="95" rx="14" fill="#f3f8ff" stroke="#5b8def" stroke-width="2"/>
+  <circle cx="1290" cy="757" r="22" fill="#2f88df"/>
+  <path d="M1276 757l28-13-10 25-6-8-12-4z" fill="#ffffff"/>
+  <text x="1325" y="752" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#234b88">Telegram</text>
+  <text x="1325" y="776" font-family="Arial, sans-serif" font-size="14" fill="#20324d">Alert Notifications</text>
+  <path d="M1375 578v132" stroke="#7046c8" stroke-width="2.5" stroke-dasharray="7 7" marker-end="url(#arrow-purple)"/>
+  <text x="1415" y="650" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#7046c8">Alerts</text>
+
+  <!-- external integrations -->
+  <rect x="105" y="690" width="955" height="120" rx="16" fill="#ffffff" stroke="#8b929c" stroke-width="2" stroke-dasharray="7 6"/>
+  <text x="582" y="723" text-anchor="middle" font-family="Arial, sans-serif" font-size="19" font-weight="700" fill="#4c535c">EXTERNAL INTEGRATIONS</text>
+
+  <g font-family="Arial, sans-serif" fill="#20324d">
+    <text x="215" y="762" font-size="16" font-weight="700">GPS Devices</text>
+    <text x="215" y="785" font-size="14">(Vehicle Tracking)</text>
+    <text x="450" y="762" font-size="16" font-weight="700">GPX Files</text>
+    <text x="450" y="785" font-size="14">(Import)</text>
+    <text x="665" y="762" font-size="16" font-weight="700">CSV / JSON</text>
+    <text x="665" y="785" font-size="14">(Import / Export)</text>
+    <text x="890" y="762" font-size="16" font-weight="700">External Systems</text>
+    <text x="890" y="785" font-size="14">(API Consumers)</text>
+  </g>
+
+  <!-- integration arrows -->
+  <path d="M245 690v-45" stroke="#7b8794" stroke-width="2" stroke-dasharray="6 6" marker-end="url(#arrow-gray)"/>
+  <path d="M480 690v-45" stroke="#7b8794" stroke-width="2" stroke-dasharray="6 6" marker-end="url(#arrow-gray)"/>
+  <path d="M700 690v-45" stroke="#7b8794" stroke-width="2" stroke-dasharray="6 6" marker-end="url(#arrow-gray)"/>
+  <path d="M925 690v-45" stroke="#7b8794" stroke-width="2" stroke-dasharray="6 6" marker-end="url(#arrow-gray)"/>
+</svg>
