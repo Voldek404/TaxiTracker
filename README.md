@@ -1,5 +1,13 @@
 <div align="center">
 
+<img src="screenshots/hero.svg"
+     alt="TaxiTracker"
+     width="100%">
+
+</div>
+
+<div align="center">
+
 # TaxiTracker
 
 ### Fleet Management & Real-Time Monitoring Platform
@@ -29,11 +37,14 @@ The project was designed with a strong focus on **modular architecture, separati
   - [Fleet Management](#fleet-management)
   - [Vehicle and Trip Tracking](#vehicle-and-trip-tracking)
   - [REST API](#rest-api)
-- [Telegram Bot](#telegram-bot)
+  - [Telegram Bot](#telegram-bot)
+- [Product Preview](#product-preview)
 - [Architecture](#architecture)
+  - [Onion Architecture](#onion-architecture)
   - [Microservices](#microservices)
-  - [Notification Service](#notification-service)
-  - [Track Generator Service](#track-generator-service)
+    - [Notification Service](#notification-service)
+    - [Track Generator Service](#track-generator-service)
+  - [Data Flow](#data-flow)
 - [Technology Stack](#technology-stack)
   - [Backend](#backend)
   - [Caching and Performance](#caching-and-performance)
@@ -208,21 +219,6 @@ This allows managers to receive operational information without constantly monit
 
 ---
 
-## Architecture
-
-The application follows an **Onion Architecture** approach.
-
-The main goal is to keep business logic independent from infrastructure and external frameworks.
-
-The system is organized around clear separation between:
-
-- Domain logic
-- Application services
-- Infrastructure
-- API
-- Presentation layer
-
-This approach makes the core business logic easier to test, maintain, and extend without tightly coupling it to Django, databases, messaging systems, or external services.
 
 ### Microservices
 
@@ -238,9 +234,25 @@ Responsible for generating trip tracks used by the main application.
 
 Both services communicate with the main system and each other through **Apache Kafka**, providing asynchronous communication between components.
 
+<div align="center">
+
+<img src="screenshots/workflow.svg"
+     alt="TaxiTracker Data Flow"
+     width="900">
+
+</div>
+
 ---
 
 ## Technology Stack
+
+<div align="center">
+
+<img src="screenshots/engineering.svg"
+     alt="TaxiTracker Engineering Stack"
+     width="900">
+
+</div>
 
 ### Backend
 
@@ -288,6 +300,14 @@ The application was tested under load using **Locust** and multiple Nginx worker
 ---
 
 ## Monitoring
+
+<div align="center">
+
+<img src="screenshots/monitoring.svg"
+     alt="TaxiTracker Observability"
+     width="900">
+
+</div>
 
 The project exposes application metrics through `django-prometheus`.
 
