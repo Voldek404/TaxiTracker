@@ -1,6 +1,20 @@
+<div align="center">
+
 # TaxiTracker
 
-**TaxiTracker** is a fleet management and monitoring platform designed for taxi fleet managers.
+### Fleet Management & Real-Time Monitoring Platform
+
+<p>
+  Django · PostgreSQL/PostGIS · Kafka · Redis · Prometheus · Grafana
+</p>
+
+[![Python](https://img.shields.io/badge/Python-3.13-3776AB?style=flat-square&logo=python&logoColor=white)](...)
+[![Django](https://img.shields.io/badge/Django-5.2-092E20?style=flat-square&logo=django&logoColor=white)](...)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql&logoColor=white)](...)
+[![Kafka](https://img.shields.io/badge/Apache%20Kafka-event%20streaming-231F20?style=flat-square&logo=apachekafka&logoColor=white)](...)
+[![Docker](https://img.shields.io/badge/Docker-containerized-2496ED?style=flat-square&logo=docker&logoColor=white)](...)
+
+</div>
 
 The system acts as an aggregator of taxi fleets and provides managers with controlled access to the vehicles assigned to their area of responsibility. The platform combines a web interface, REST API, Telegram notifications, reporting, geospatial trip visualization, data export/import, monitoring, and several supporting microservices.
 
