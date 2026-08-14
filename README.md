@@ -112,53 +112,16 @@ Telegram alerts
 
 ## Architecture
 
-TaxiTracker follows a modular microservice architecture built around Django services, Apache Kafka, PostgreSQL, and an observability stack.
+TaxiTracker follows a modular microservice architecture built around Django,
+Apache Kafka, PostgreSQL/PostGIS, and an observability stack.
 
-```text
-                         ┌──────────────────────┐
-                         │       Clients        │
-                         │  Web / REST API / Bot│
-                         └──────────┬───────────┘
-                                    │
-                                    ▼
-        ┌─────────────────────────────────────────────────┐
-        │                 Django Services                 │
-        │                                                 │
-        │ ┌────────────────┐ ┌────────────────┐ ┌───────┐ │
-        │ │ Fleet Service  │ │ Rating Service │ │ Stats │ │
-        │ │     :8000      │ │     :8001      │ │ :8002 │ │
-        │ └───────┬────────┘ └───────┬────────┘ └───┬───┘ │
-        └─────────┼──────────────────┼──────────────┼───--┘
-                  │                  │              │
-                  └──────────────────┼──────────────┘
-                                     │
-                    ┌────────────────┴────────────────┐
-                    │                                 │
-                    ▼                                 ▼
-          ┌──────────────────┐              ┌──────────────────┐
-          │      Kafka       │              │    PostgreSQL    │
-          │ Event Streaming  │              │    Persistence   │
-          └──────────────────┘              └──────────────────┘
+<div align="center">
 
-                  │
-                  │ /metrics
-                  ▼
-          ┌──────────────────┐
-          │    Prometheus    │──────────────►┌──────────────────┐
-          │      :9090       │               │      Grafana     │
-          └────────┬─────────┘               └──────────────────┘
-                   │
-                   │ alerts
-                   ▼
-          ┌──────────────────┐
-          │   Alertmanager   │
-          │      :9093       │
-          └────────┬─────────┘
-                   │
-                   ▼
-          ┌──────────────────┐
-          │   Telegram Bot   │
-          └──────────────────┘
+<img src="screenshots/architecture.png"
+     alt="TaxiTracker Architecture"
+     width="900">
+
+</div>
 
 **Fleet dashboard**
 
