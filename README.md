@@ -8,6 +8,35 @@ The project was designed with a strong focus on **modular architecture, separati
 
 **Repository:** https://github.com/Voldek404/TaxiTracker
 
+
+## Table of Contents
+
+- [Features](#features)
+  - [Fleet Management](#fleet-management)
+  - [Vehicle and Trip Tracking](#vehicle-and-trip-tracking)
+  - [REST API](#rest-api)
+- [Telegram Bot](#telegram-bot)
+- [Architecture](#architecture)
+  - [Microservices](#microservices)
+  - [Notification Service](#notification-service)
+  - [Track Generator Service](#track-generator-service)
+- [Technology Stack](#technology-stack)
+  - [Backend](#backend)
+  - [Caching and Performance](#caching-and-performance)
+  - [Messaging](#messaging)
+  - [Monitoring and Observability](#monitoring-and-observability)
+  - [Performance Testing](#performance-testing)
+- [Monitoring](#monitoring)
+- [Data Import and Export](#data-import-and-export)
+- [Access Control](#access-control)
+- [Deployment](#deployment)
+  - [Initial Deployment](#initial-deployment)
+  - [Updating an Existing Deployment](#updating-an-existing-deployment)
+- [Local Development](#local-development)
+- [Engineering Highlights](#engineering-highlights)
+- [Project Status](#project-status)
+- [Repository](#repository)
+
 ---
 
 ## Features
